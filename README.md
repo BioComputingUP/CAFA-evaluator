@@ -1,40 +1,63 @@
 # CAFA-evaluator
 
+Calculate precision-recall curves and F-max as in the 
+[Critical Assessment of protein Function Annotation (CAFA)](https://www.biofunctionprediction.org/cafa/)
+
+CAFA-evaluator is generic and works with any ontology. For example it is used to evaluate 
+intrinsic disorder function predictions against [DisProt](https://disprot.org/) annotations.
+
 ## Required packages
 
-- Numpy
-- Logging
+- numpy
+- logging
 - matplotlib
 
 ## HowTo
 
-To run the evaluation on some existing predictions run **main.py** in src with the following arguments:
+To run CAFA-evaluator simply call **main.py** in the src/ folder with the following arguments:
 
-### Ontology file
+Mandatory
+* *Ontology file* containing the structure of the terms in OBO format
 
-File .obo that contains the structure of the ontology.
+* *Prediction folder* with prediction files. Sub-folders are processed recursively and the sub-folder name is used as prefix
 
-### Prediction Folder
+* *Ground truth folder* with ground truth files, one for each namespace (sub-ontology). 
+The ontology namespace has to be hardcoded in the filename, e.g. gt_*bpo*_.txt or *disorderfunction*.tsv
 
-The path to the folder containing the predictions (the '/' after the name of the folder must be ommitted). The predictions have to be contained in a folder nested in the given path to allow multiple predictior comparison, for example if we give the path to the folder *Prediction* as parameter the structure has to be:
+Optional
 
+* *Output folder*
+* *Benchmark folder* with benchmark files, one for each namespace (sub-ontology). 
+The evaluation is performed considering only the targets listed in these files. 
+The ontology namespace has to be hardcoded in the filename, e.g. bm_*bpo*_.txt or *disorderfunction*.tsv
+
+
+
+### Namespaces (sub-ontologies)
+
+At the moment in order to recognize the namespaces you should 
+modify this dictionary which is hardcoded in *main.py*.
+
+The key is the string matched in the ground truth and benchmark files, 
+while values correspond to the namespace field in the OBO file. 
+
+~~~Python3
+namespaces = {"bpo": "biological_process", "cco": "cellular_component", "mfo": "molecular_function",
+ "disorderfunction": "Disorder function", "interactionpartner": "Interaction partner",
+ "structuralstate": "Structural state", "structuraltransition": "Structural transition"}
 ~~~
-Predictions    
-│
-└───PredictorA
-│   │   predictions1.txt
-│   │   predictions2.txt
-│   │	...
-│   
-└───PredictorB
-    │   predictions1.txt
-    │   predictions2.txt
-    |   ...
-~~~
 
-The predictions can be contained in a single file but they can be split up in more files in case of memory problems. The only requirement is that all the predictions for a specific protein must be contained in a single file. The format of prediction files has to be:
 
-Cafa_id	Predicted_Go_Term	Score
+
+### Output
+
+* Precision-recall graph for each ontology (<namespace>.png)
+* Text file with precision, recall and Fmax values for each namespace (results.tsv)
+* Log file (info.log)
+
+### Prediction format
+
+Target_ID   Term_ID Score
 
 ~~~txt
 T98230000001    GO:0000159      0.39
@@ -43,13 +66,9 @@ T98230000001    GO:1902494      0.39
 ...
 ~~~
 
+### Ground truth format
 
-
-### Ground Truth Folder
-
-Path to the folder containing the ground truth files one for each ontology used in the evaluation (the '/' after the name of the folder must be ommitted). In order for the program to pick up this files their name has to contain the namespace, for example the ground truth file for the biological process should be named *bpo_gt.txt*. The format of a ground truth file should be:
-
-Cafa_Id	Go_Term	
+Target_ID   Term_ID	
 
 ~~~
 T100900005305   GO:0033234
@@ -58,11 +77,8 @@ T100900010085   GO:0046777
 ...
 ~~~
 
-### (optional) output path
 
-Path to the folder where the results will be written.
-
-### (optional) gt_filters
+### Benchmark format
 
 Path to the folder containing the files, one for each ontology, in which are listed all the proteins that will be actually used for evaluation (the '/' after the name of the folder must be ommitted). like in the ground truth case each file has to have the namespace in the name of the file i.e bpo_benchmark.txt. A filter file should just be a list of protein Ids like this:
 
@@ -73,21 +89,4 @@ T446890003376
 ...
 ~~~
 
-## Allowed namespaces
-
-At the moment the namespaces code are hard-coded in main like this:
-
-~~~Python3
-namespaces = {"bpo": "biological_process", "cco": "cellular_component", "mfo": "molecular_function",
- "disorderfunction": "Disorder function", "interactionpartner": "Interaction partner",
- "structuralstate": "Structural state", "structuraltransition": "Structural transition"}
-~~~
-
-Where the key is the code that will needs to be in the ground-truth and filter file meanwhile the values correspond to the namespace field in the .obo file. If more ontologies need to be used just modify this dictionary. 	
-
-## Outputs
-
-- A precision-recall graph for each ontology 
-- A results.tsv file containing the precision, recall and fmax for each ontology
-- A log file containing some information about terms that are not used 
 
