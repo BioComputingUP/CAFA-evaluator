@@ -3,6 +3,7 @@ from parser import parse_go_count
 import math
 import matplotlib.pyplot as plt
 import csv
+import logging
 
 # compute the indexes of the term of interests in the dag
 def get_toi_idx(dag):
@@ -185,7 +186,7 @@ def plot_graphs(pr, rc, f, output_path, tau_arr):
     with open(output_path+"/results.tsv", "wt") as out_file:
         tsv_writer = csv.writer(out_file, delimiter='\t')
         tsv_writer.writerow(["Method", "Namespace", "FMax", "Precision", "Recall", "Tau"])
-        for i in range(0,len(names)):
+        for i in range(0, len(names)):
             c_dict[names[i]] = colors[i] 
         x = names[0]
         namespaces = pr[x].keys()
@@ -201,13 +202,14 @@ def plot_graphs(pr, rc, f, output_path, tau_arr):
                     for i in range(0,len(pr[n][ns])):
                         if pr[n][ns][i] > 0 and rc[n][ns][i] > 0 and rc[n][ns][i] < 1:
                             idx.append(i)
-                    ax.plot(rc[n][ns][idx], pr[n][ns][idx], label=n +" f max: " + str(round(f[n][ns][max_idx],2)), c=c_dict[n])
+                    ax.plot(rc[n][ns][idx], pr[n][ns][idx], label="{} Fmax {}".format(n, round(f[n][ns][max_idx], 2)), c=c_dict[n])
                     plt.yticks(np.arange(0,1,0.1), fontsize=16)
                     plt.xticks(fontsize=16)
-                    plt.plot(rc[n][ns][max_idx], pr[n][ns][max_idx], 'ro', c=c_dict[n]) 
+                    plt.plot(rc[n][ns][max_idx], pr[n][ns][max_idx], 'o', c=c_dict[n])
+
             lab_idx = list(np.argsort(f_max))
             lab_idx.reverse()
-            handles,labels = ax.get_legend_handles_labels()
+            handles, labels = ax.get_legend_handles_labels()
             labels2 = []
             handles2 = []
             for i in lab_idx:

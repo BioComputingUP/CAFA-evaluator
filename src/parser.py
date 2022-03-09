@@ -142,7 +142,9 @@ def split_pred_parser(pred_file, ontologies , gts):
                         unused_pid.add(p_id)
                         
     for p in unused_pid:
-        logging.info(p + " is not contained in the ground truth")
+        logging.debug(p + " is not contained in the ground truth")
+    logging.info("Skipped targets (not in gt) {} ({})".format(len(unused_pid), pred_file))
+
     #print("actual pred parsing:", time.time()-parsing)
     creation = time.time()
     scores = {}
@@ -164,7 +166,8 @@ def split_pred_parser(pred_file, ontologies , gts):
     predictions = []
     for ns in namespaces:
         predictions.append(Prediction(ids[ns], scores[ns], idx[ns], ns))
-    #print("Prediction creation:", time.time()-creation)
+        logging.info("Used targets {} {} ({})".format(ns, len(ids[ns]), pred_file))
+        #print("Prediction creation:", time.time()-creation)
     return predictions
     
 
