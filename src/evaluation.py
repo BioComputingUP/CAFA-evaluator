@@ -177,52 +177,61 @@ def plot_prrc_curve(pr, rc, name, output_path='', index=None):
     plt.savefig(output_path+name+".jpg")
     plt.close()
 
-#plots a graph for each different namespace containing the curves for each (or the best based on f) team's prediction 
-def plot_graphs(pr, rc, f, output_path, tau_arr): 
-    cmap = plt.get_cmap('viridis')
-    names = list(pr.keys())
-    colors = cmap(np.linspace(0, 1, len(names)))
-    c_dict = {}
-    with open(output_path+"/results.tsv", "wt") as out_file:
-        tsv_writer = csv.writer(out_file, delimiter='\t')
-        tsv_writer.writerow(["Method", "Namespace", "FMax", "Precision", "Recall", "Tau"])
-        for i in range(0, len(names)):
-            c_dict[names[i]] = colors[i] 
-        x = names[0]
-        namespaces = pr[x].keys()
-        for ns in namespaces:
-            f_max = []
-            fig, ax = plt.subplots(figsize=(10,10))
-            for n in names:
-                if pr[n][ns].any() and rc[n][ns].any(): 
-                    max_idx = np.argmax(f[n][ns])
-                    f_max.append(f[n][ns][max_idx])
-                    tsv_writer.writerow([n, ns, f[n][ns][max_idx], pr[n][ns][max_idx], rc[n][ns][max_idx], str(round(tau_arr[max_idx],2))])
-                    idx = []
-                    for i in range(0,len(pr[n][ns])):
-                        if pr[n][ns][i] > 0 and rc[n][ns][i] > 0 and rc[n][ns][i] < 1:
-                            idx.append(i)
-                    ax.plot(rc[n][ns][idx], pr[n][ns][idx], label="{} Fmax {}".format(n, round(f[n][ns][max_idx], 2)), c=c_dict[n])
-                    plt.yticks(np.arange(0,1,0.1), fontsize=16)
-                    plt.xticks(fontsize=16)
-                    plt.plot(rc[n][ns][max_idx], pr[n][ns][max_idx], 'o', c=c_dict[n])
 
-            lab_idx = list(np.argsort(f_max))
-            lab_idx.reverse()
-            handles, labels = ax.get_legend_handles_labels()
-            labels2 = []
-            handles2 = []
-            for i in lab_idx:
-                labels2.append(labels[i])
-                handles2.append(handles[i])
-            ax.legend(handles2, labels2, bbox_to_anchor=(1.05, 1), loc='upper left', prop={'size': 15})
-            ax.set_title(ns, fontsize=20)
-            ax.set_ylabel("Precision", fontsize=18)
-            ax.set_xlabel("Recall", fontsize=18)
-            plt.xlim([0,1])
-            plt.ylim([0,1])
-            plt.savefig(output_path+"/"+ns, bbox_inches='tight')
-            plt.close('all')
+#plots a graph for each different namespace containing the curves for each (or the best based on f) team's prediction 
+def plot_graphs(pr, rc, f, cov, output_path, c_dict=None, l_dict=None):
+    names = list(pr.keys())
+    namespaces = pr[names[0]].keys()
+
+    for ns in namespaces:
+        f_max = []
+        fig, ax = plt.subplots(figsize=(10, 10))
+        for n in names:
+            if pr[n][ns].any() and rc[n][ns].any():
+                max_idx = np.argmax(f[n][ns])
+                f_max.append(f[n][ns][max_idx])
+                idx = []
+                for i in range(0, len(pr[n][ns])):
+                    if pr[n][ns][i] > 0 and 0 < rc[n][ns][i] < 1:
+                        idx.append(i)
+
+                label = n
+                if l_dict is not None and l_dict.get(n):
+                    label = l_dict.get(n)
+
+                color = None
+                if c_dict is not None and c_dict.get(n):
+                    color = c_dict.get(n)
+
+                if 'naive' in label:
+                    ax.plot(rc[n][ns][idx], pr[n][ns][idx], '--',
+                            label="{} F={:.2f} (C={:.2f})".format(label, f[n][ns][max_idx], cov[n][ns][max_idx]),
+                            c=color)
+                else:
+                    ax.plot(rc[n][ns][idx], pr[n][ns][idx],
+                        label="{} F={:.2f} (C={:.2f})".format(label, f[n][ns][max_idx], cov[n][ns][max_idx]),
+                        c=color)
+
+                plt.yticks(np.arange(0, 1, 0.1), fontsize=16)
+                plt.xticks(fontsize=16)
+                plt.plot(rc[n][ns][max_idx], pr[n][ns][max_idx], 'o', c=color)
+
+        lab_idx = list(np.argsort(f_max))
+        lab_idx.reverse()
+        handles, labels = ax.get_legend_handles_labels()
+        labels2 = []
+        handles2 = []
+        for i in lab_idx:
+            labels2.append(labels[i])
+            handles2.append(handles[i])
+        ax.legend(handles2, labels2, bbox_to_anchor=(1.05, 1), loc='upper left', prop={'size': 15})
+        # ax.set_title(ns, fontsize=20)
+        ax.set_ylabel("Precision", fontsize=18)
+        ax.set_xlabel("Recall", fontsize=18)
+        plt.xlim([0, 1])
+        plt.ylim([0, 1])
+        plt.savefig(output_path+"/"+ns, bbox_inches='tight')
+        plt.close('all')
 
             
 

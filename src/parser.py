@@ -193,13 +193,15 @@ def gt_parser(gt_file, go_terms, split, benchmark=None):
                         if p_id not in gt_ids:
                             gt_ids[p_id] = idx
                             idx += 1
-                    rel_list.append([p_id,go_id])
+                    rel_list.append([p_id, go_id])
     n = len(gt_ids)
     
     if split:
-        gt1 = np.zeros((n,len(go_terms[0])), dtype='bool')
-        gt2 = np.zeros((n,len(go_terms[1])), dtype='bool')
-        gt3 = np.zeros((n,len(go_terms[2])), dtype='bool')
+        # TODO generalize for any number of sub-namespaces
+        gt1 = np.zeros((n, len(go_terms[0])), dtype='bool')
+        gt2 = np.zeros((n, len(go_terms[1])), dtype='bool')
+        gt3 = np.zeros((n, len(go_terms[2])), dtype='bool')
+
         for p_id, go_id in rel_list:
             if go_terms[0].get(go_id) is not None:
                 gt1[gt_ids[p_id], go_terms[0][go_id]['index']] = 1
@@ -211,13 +213,14 @@ def gt_parser(gt_file, go_terms, split, benchmark=None):
                 continue #empty so there is no error if a go_id is not in the onotlogies
         return Ground_truth(gt_ids, gt1), Ground_truth(gt_ids, gt2), Ground_truth(gt_ids, gt3)
     else:
-        gt = np.zeros((n,go_terms['n']), dtype='bool')
+        terms = sorted([(v['index'], k, v['name']) for k, v in go_terms.items() if k != 'n'])
+        gt = np.zeros((n, go_terms['n']), dtype='bool')
         for p_id, go_id in rel_list:
             if go_id in go_terms and p_id in gt_ids:
                 gt[gt_ids[p_id], go_terms[go_id]['index']] = 1
             elif go_id not in go_terms:
                 logging.info("the term " + go_id + " is not contained in the ontology")
-        return Ground_truth(gt_ids, gt)
+        return Ground_truth(gt_ids, gt, terms)
     
 
 def parse_pred_paths(paths_file):

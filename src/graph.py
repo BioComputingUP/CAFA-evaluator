@@ -31,9 +31,10 @@ class Prediction:
 
 
 class Ground_truth:
-    def __init__(self, p_ids, gt_matrix):
+    def __init__(self, p_ids, gt_matrix, terms=None):
         self.ids = p_ids
         self.matrix = gt_matrix
+        self.terms = terms
 
 
 
