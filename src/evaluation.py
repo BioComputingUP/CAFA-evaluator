@@ -179,51 +179,57 @@ def plot_prrc_curve(pr, rc, name, output_path='', index=None):
 
 
 #plots a graph for each different namespace containing the curves for each (or the best based on f) team's prediction 
-def plot_graphs(pr, rc, f, cov, output_path, c_dict=None, l_dict=None):
+def plot_graphs(pr, rc, f, cov, output_path, c_dict=None, l_dict=None, baselines=None):
     names = list(pr.keys())
+
+    # Put the baselines at the bottom
+    if baselines:
+        names = sorted(names, key=lambda x: x in baselines, reverse=True)
+
     namespaces = pr[names[0]].keys()
 
     for ns in namespaces:
         f_max = []
         fig, ax = plt.subplots(figsize=(10, 10))
+
         for n in names:
             if pr[n][ns].any() and rc[n][ns].any():
                 max_idx = np.argmax(f[n][ns])
-                f_max.append(f[n][ns][max_idx])
                 idx = []
                 for i in range(0, len(pr[n][ns])):
                     if pr[n][ns][i] > 0 and 0 < rc[n][ns][i] < 1:
                         idx.append(i)
 
-                label = n
-                if l_dict is not None and l_dict.get(n):
-                    label = l_dict.get(n)
+                label = l_dict.get(n, n) if l_dict is not None else n
+                color = c_dict.get(n) if c_dict is not None else None
 
-                color = None
-                if c_dict is not None and c_dict.get(n):
-                    color = c_dict.get(n)
-
-                if 'naive' in label:
+                if baselines and n in baselines:
+                    f_max.append(0)  # trick to put baselines at the bottom of the legend
                     ax.plot(rc[n][ns][idx], pr[n][ns][idx], '--',
                             label="{} F={:.2f} (C={:.2f})".format(label, f[n][ns][max_idx], cov[n][ns][max_idx]),
-                            c=color)
+                            c=color, linewidth=2)
                 else:
+                    f_max.append(f[n][ns][max_idx])
                     ax.plot(rc[n][ns][idx], pr[n][ns][idx],
-                        label="{} F={:.2f} (C={:.2f})".format(label, f[n][ns][max_idx], cov[n][ns][max_idx]),
-                        c=color)
+                            label="{} F={:.2f} (C={:.2f})".format(label, f[n][ns][max_idx], cov[n][ns][max_idx]),
+                            c=color)
 
                 plt.yticks(np.arange(0, 1, 0.1), fontsize=16)
                 plt.xticks(fontsize=16)
                 plt.plot(rc[n][ns][max_idx], pr[n][ns][max_idx], 'o', c=color)
 
-        lab_idx = list(np.argsort(f_max))
-        lab_idx.reverse()
+
         handles, labels = ax.get_legend_handles_labels()
         labels2 = []
         handles2 = []
+
+        lab_idx = list(np.argsort(f_max))
+        lab_idx.reverse()
+
         for i in lab_idx:
             labels2.append(labels[i])
             handles2.append(handles[i])
+
         ax.legend(handles2, labels2, bbox_to_anchor=(1.05, 1), loc='upper left', prop={'size': 15})
         # ax.set_title(ns, fontsize=20)
         ax.set_ylabel("Precision", fontsize=18)

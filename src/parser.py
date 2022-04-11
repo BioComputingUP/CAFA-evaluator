@@ -5,7 +5,7 @@ import xml.etree.ElementTree as ET
 import logging
 
 # parses a obo file and returns a list of ontologies, one for each different namespace
-def parse_obo(obo_file):
+def parse_obo(obo_file, add_roots=True, rel=["is_a", "part_of"]):
     namespaces = set()
     rel_list = []
     go_dict = {}
@@ -14,6 +14,7 @@ def parse_obo(obo_file):
     temp_name = ''
     temp_def = ''
     temp_alt_id = []
+    temp_rel = []
     with open(obo_file) as f:
         for line in f:
             line = line.strip().split(": ")
@@ -23,9 +24,10 @@ def parse_obo(obo_file):
                     # when a new id is found first we have to input the entry in the go term dict
                     # also we will have to input a new entry when we reach EOF 
                     if temp_id != '':
-                        go_dict[temp_id] = {'name': temp_name, 'namespace': temp_namespace, 'def': temp_def, 'alt_id': temp_alt_id}
+                        go_dict[temp_id] = {'name': temp_name, 'namespace': temp_namespace, 'def': temp_def, 'alt_id': temp_alt_id, 'rel': temp_rel}
                     temp_alt_id = []
                     temp_id = v
+                    temp_rel = []
                 elif k == "alt_id":
                     temp_alt_id.append(v)
                 elif k == "name":
@@ -35,14 +37,17 @@ def parse_obo(obo_file):
                     namespaces.add(temp_namespace)
                 elif k == "def":
                     temp_def = v
-                elif k == "is_a":
+                elif k == "is_a" and k in rel:
                     # add (temp_id,v) tuple to the relation list
                     s = v.split('!')[0].strip()
-                    rel_list.append([temp_id, s, temp_namespace])
-                elif k == "relationship" and v.startswith("part_of"):
+                    # rel_list.append([temp_id, s, temp_namespace])
+                    temp_rel.append(s)
+                elif k == "relationship" and v.startswith("part_of") and "part_of" in rel:
                     s = v.split()[1].strip()
-                    rel_list.append([temp_id, s, temp_namespace]) 
-        go_dict[temp_id] = {'name': temp_name, 'namespace': temp_namespace, 'def': temp_def, 'alt_id': temp_alt_id}
+                    temp_rel.append(s)
+                    # rel_list.append([temp_id, s, temp_namespace])
+        # Last record
+        go_dict[temp_id] = {'name': temp_name, 'namespace': temp_namespace, 'def': temp_def, 'alt_id': temp_alt_id, 'rel': temp_rel}
                     
     go_struct = {}
     go_lists = {}
@@ -54,24 +59,28 @@ def parse_obo(obo_file):
         idxs[ns] = 0
     
     for go_id, term in go_dict.items():
-        ns = term['namespace']
-        name = term['name']
-        definition = term['def']
-        alt_ids = term['alt_id']
-        go_struct[ns][go_id] = {'index': idxs[ns], 'name': name, 'namespace': ns, 'def': definition}
-        go_lists[ns].append({'id': go_id, 'name': name, 'namespace': ns, 'def': definition, 'adj': [], 'children': []})
-        for a_id in alt_ids:
-            go_struct[ns][a_id] = {'index': idxs[ns], 'name': name, 'namespace': ns, 'def': definition}
-        idxs[ns] += 1
-    
+        if add_roots or len(term.get('rel', [])) > 0:
+
+            rel_list.extend([[go_id, rel, term['namespace']] for rel in term['rel'] if add_roots or len(go_dict[rel].get('rel', [])) > 0])
+
+            ns = term['namespace']
+            name = term['name']
+            definition = term['def']
+            alt_ids = term['alt_id']
+            go_struct[ns][go_id] = {'index': idxs[ns], 'name': name, 'namespace': ns, 'def': definition}
+            go_lists[ns].append({'id': go_id, 'name': name, 'namespace': ns, 'def': definition, 'adj': [], 'children': []})
+            for a_id in alt_ids:
+                go_struct[ns][a_id] = {'index': idxs[ns], 'name': name, 'namespace': ns, 'def': definition}
+            idxs[ns] += 1
+
     for ns in namespaces:
         go_struct[ns]['n'] = idxs[ns]
-        dags[ns] = np.zeros((idxs[ns],idxs[ns]), dtype='bool')
+        dags[ns] = np.zeros((idxs[ns], idxs[ns]), dtype='bool')
     
     for id1, id2, ns in rel_list:
         i = go_struct[ns][id1]['index']
         j = go_struct[ns][id2]['index']
-        dags[ns][i,j] = 1
+        dags[ns][i, j] = 1
         go_lists[ns][i]['adj'].append(j)
         go_lists[ns][j]['children'].append(i)
 
@@ -106,8 +115,9 @@ def pred_parser(pred_file, go_terms, gt_ids):
         if g is not None and p is not None:
             i = p
             j = g['index']
-            scores[i,j] = prob
+            scores[i, j] = prob
     return Prediction(pr_id, scores, idx)
+
 
 # Parses a prediction file and returns a Prediction object for each ontology in ontologies
 def split_pred_parser(pred_file, ontologies , gts):
@@ -116,7 +126,7 @@ def split_pred_parser(pred_file, ontologies , gts):
     tot_ids = {}
     idx = {}
     ids = {}
-    ns_time = 0
+    #ns_time = 0
     namespaces = []
     for ont in ontologies:
         ns = ont.ontology_type
@@ -124,7 +134,7 @@ def split_pred_parser(pred_file, ontologies , gts):
         ids.setdefault(ns, {})
         namespaces.append(ns)
         tot_ids.update(gts[ns].ids)
-    parsing = time.time()
+    #parsing = time.time()
     with open(pred_file) as f:
         for line in f:
             line = line.strip().split()
@@ -140,13 +150,20 @@ def split_pred_parser(pred_file, ontologies , gts):
                         rel_list.append([p_id, go_id, prob])
                     else:
                         unused_pid.add(p_id)
-                        
-    for p in unused_pid:
-        logging.debug(p + " is not contained in the ground truth")
-    logging.info("Skipped targets (not in gt) {} ({})".format(len(unused_pid), pred_file))
+
+    # for p_id in unused_pid:
+    #     logging.debug("Not in ground truth {}".format(p_id))
+
+    logging.info("Skipped targets: {} (not gt) {} (not pred) ({})".format(len(unused_pid),
+                                                                          len(set(gts[ns].ids) - set(ids[ns].keys())),
+                                                                          pred_file))
+    for ns in gts:
+        for p_id in set(gts[ns].ids) - set(ids[ns].keys()):
+            logging.debug("Not predicted {} {}".format(ns, p_id))
+            # print("Not predicted {} {}".format(ns, p_id))
 
     #print("actual pred parsing:", time.time()-parsing)
-    creation = time.time()
+    #creation = time.time()
     scores = {}
     np_ = {}
     nt = {}
@@ -155,23 +172,23 @@ def split_pred_parser(pred_file, ontologies , gts):
         np_[ns] = idx[ns]
         nt[ns] = ont.go_terms['n']
         scores[ns] = np.zeros((np_[ns], nt[ns]), dtype='float')
+
     for p_id, go_id, prob in rel_list:
         for ont in ontologies:
             ns = ont.ontology_type
-            if go_id in ont.go_terms and p_id in ids[ns]:
+            if p_id in ids[ns] and go_id in ont.go_terms:
                 i = ids[ns].get(p_id)
                 j = ont.go_terms.get(go_id)['index']
-                scores[ns][i,j] = prob
+                scores[ns][i, j] = prob
                 break
+
     predictions = []
     for ns in namespaces:
         predictions.append(Prediction(ids[ns], scores[ns], idx[ns], ns))
         logging.info("Used targets {} {} ({})".format(ns, len(ids[ns]), pred_file))
         #print("Prediction creation:", time.time()-creation)
     return predictions
-    
 
-    
 
 # parses a ground truth file, using the dictionary of go terms to remove go terms that are not contained in the ontology
 # it is possible to use a benchmark file in order to filter the protein ids in the ground truth
@@ -250,6 +267,7 @@ with open("data/human_disease_swissprot_10.xml") as f:
             print(accession, omim, name, do_omim_mapping.get(omim))
             annotations.append((accession, omim, name, do_omim_mapping.get(omim, [])))"""
 
+
 # parser for xml file to compute information content, returns a file containing the count of each go term
 def save_go_count(xml_file):
     go_count = {}
@@ -302,6 +320,7 @@ print("gt\n", gt)
 
 print("propagated pred: \n", propagate_pred(pred.scores, ont))
 print("propagated gt;\n", propagate_pred(gt, ont))   """
+
 
 def mistake_counter(a1, a2):
     #print(len(a1), len(a2))
