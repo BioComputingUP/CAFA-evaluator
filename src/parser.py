@@ -199,18 +199,18 @@ def gt_parser(gt_file, go_terms, split, benchmark=None):
     with open(gt_file) as f:
         for line in f:
             line = line.strip().split()
-            if line and len(line) == 2 and line[0].startswith("T"):
+            if line and len(line) == 2:
                 p_id, go_id = line[:2]
-                if p_id.startswith("T"):
-                    if benchmark is not None:
-                        if p_id in benchmark and p_id not in gt_ids:
-                            gt_ids[p_id] = idx
-                            idx += 1
-                    else:
-                        if p_id not in gt_ids:
-                            gt_ids[p_id] = idx
-                            idx += 1
-                    rel_list.append([p_id, go_id])
+                #if p_id.startswith("T"):
+                if benchmark is not None:
+                    if p_id in benchmark and p_id not in gt_ids:
+                        gt_ids[p_id] = idx
+                        idx += 1
+                else:
+                    if p_id not in gt_ids:
+                        gt_ids[p_id] = idx
+                        idx += 1
+                rel_list.append([p_id, go_id])
     n = len(gt_ids)
     
     if split:
