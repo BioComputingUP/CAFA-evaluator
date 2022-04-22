@@ -4,6 +4,7 @@ import time
 import xml.etree.ElementTree as ET
 import logging
 
+
 # parses a obo file and returns a list of ontologies, one for each different namespace
 def parse_obo(obo_file, add_roots=True, rel=["is_a", "part_of"]):
     namespaces = set()
@@ -126,7 +127,6 @@ def split_pred_parser(pred_file, ontologies , gts):
     tot_ids = {}
     idx = {}
     ids = {}
-    #ns_time = 0
     namespaces = []
     for ont in ontologies:
         ns = ont.ontology_type
@@ -134,7 +134,7 @@ def split_pred_parser(pred_file, ontologies , gts):
         ids.setdefault(ns, {})
         namespaces.append(ns)
         tot_ids.update(gts[ns].ids)
-    #parsing = time.time()
+
     with open(pred_file) as f:
         for line in f:
             line = line.strip().split()
@@ -154,7 +154,7 @@ def split_pred_parser(pred_file, ontologies , gts):
     # for p_id in unused_pid:
     #     logging.debug("Not in ground truth {}".format(p_id))
 
-    logging.info("Skipped targets: {} (not gt) {} (not pred) ({})".format(len(unused_pid),
+    logging.debug("Skipped targets: {} (not gt) {} (not pred) ({})".format(len(unused_pid),
                                                                           len(set(gts[ns].ids) - set(ids[ns].keys())),
                                                                           pred_file))
     for ns in gts:
@@ -162,8 +162,6 @@ def split_pred_parser(pred_file, ontologies , gts):
             logging.debug("Not predicted {} {}".format(ns, p_id))
             # print("Not predicted {} {}".format(ns, p_id))
 
-    #print("actual pred parsing:", time.time()-parsing)
-    #creation = time.time()
     scores = {}
     np_ = {}
     nt = {}
@@ -185,8 +183,7 @@ def split_pred_parser(pred_file, ontologies , gts):
     predictions = []
     for ns in namespaces:
         predictions.append(Prediction(ids[ns], scores[ns], idx[ns], ns))
-        logging.info("Used targets {} {} ({})".format(ns, len(ids[ns]), pred_file))
-        #print("Prediction creation:", time.time()-creation)
+        logging.debug("Used targets {} {} ({})".format(ns, len(ids[ns]), pred_file))
     return predictions
 
 
@@ -237,7 +234,7 @@ def gt_parser(gt_file, go_terms, split, benchmark=None):
                 gt[gt_ids[p_id], go_terms[go_id]['index']] = 1
             elif go_id not in go_terms:
                 logging.info("the term " + go_id + " is not contained in the ontology")
-        return Ground_truth(gt_ids, gt, terms)
+        return Ground_truth(gt_ids, gt, terms=terms)
     
 
 def parse_pred_paths(paths_file):
@@ -247,56 +244,8 @@ def parse_pred_paths(paths_file):
             paths.append(line.strip('\n'))
     return paths
 
-"""def parse_uniprot(xml_file):
 
-
-Parse the uniprot xml annotations. Find the OMIM references ("entry/comment/disease/dbReference")
-Available also in the text format, under the "CC   -!- DISEASE:" line
-Download the top 10 proteins with disease annotations (examples Q01718, Q15465)
-
-annotations = []
-NS = {'uniprot': 'http://uniprot.org/uniprot'}
-with open("data/human_disease_swissprot_10.xml") as f:
-    root = ET.fromstring(f.read())
-    for ele in root.findall("uniprot:entry", NS):
-        accession = ele.find("uniprot:accession", NS).text  # Extract first accession
-        for comment in ele.findall("uniprot:comment/uniprot:disease", NS):
-            # Find the reference to OMIM/MIM and the disease name
-            omim = comment.find("uniprot:dbReference", NS).attrib.get("id")
-            name = comment.find("uniprot:name", NS).text
-            print(accession, omim, name, do_omim_mapping.get(omim))
-            annotations.append((accession, omim, name, do_omim_mapping.get(omim, [])))"""
-
-
-# parser for xml file to compute information content, returns a file containing the count of each go term
-def save_go_count(xml_file):
-    go_count = {}
-    uniprot = etree.iterparse(xml_file)
-    count = 0
-    for _, entry in uniprot:
-        if(entry.tag == "{http://uniprot.org/uniprot}dbReference") and entry.get('type') == "GO":
-            go = entry.get('id')
-            go_count.setdefault(go, 0)
-            go_count[go] += 1
-        entry.clear()
-    print(count)
-    
-    f = open("go_count.txt", 'w')
-    for k, v in go_count.items():
-        s = "%s %s\n" % (k, v)
-        f.write(s)
-    f.close()
-
-# parses the go count file obtained using save_go_xml
-def parse_go_count(go_count_file):
-    go_count = {}
-    with open(go_count_file) as f:
-        for line in f:
-            go_id, count = line.split()
-            go_count[go_id] = int(count)
-    return go_count 
-
-# parses a benchmark file 
+# parses a benchmark file
 def parse_benchmark(file):
     p_ids = {}
     with open(file) as f:
@@ -304,9 +253,17 @@ def parse_benchmark(file):
             p_ids.setdefault(line.strip('\n'), 1)
     return p_ids
 
-            
-    
-    
+
+def parse_ia_dict(file):
+    ia_dict = {}
+    with open(file) as f:
+        for line in f:
+            if line:
+                term, ia = line.strip().split()
+                ia_dict[term] = float(ia)
+    return ia_dict
+
+
 # TOY TEST
 """[ont] = parse_obo("src/go.obo")
 pred = pred_parser("src/pred.txt", ont.go_terms)

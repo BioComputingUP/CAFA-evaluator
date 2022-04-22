@@ -1,13 +1,12 @@
-from graph import top_sort, propagate_gt, propagate_pred
-from parser import parse_obo, parse_benchmark, gt_parser, split_pred_parser
-from evaluation import get_toi_idx, get_leafs_idx, get_roots_idx, compute_f_metrics, compute_f, plot_graphs
-import time
+from graph import top_sort, propagate
+from parser import parse_obo, parse_benchmark, gt_parser, split_pred_parser, parse_ia_dict
+from evaluation import get_toi_idx, get_leafs_idx, get_roots_idx, compute_metrics, compute_f, compute_s, plot_pr_rc
 import argparse
 import logging
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-import sys
+import pandas as pd
 
 
 
@@ -27,6 +26,7 @@ parser.add_argument('-filter_dir', help='Benchmark directory. By default the sof
 parser.add_argument('-split', help='Consider namespaces separately', default=1)
 parser.add_argument('-no_roots', action='store_true', default=False, help='Exclude terms without is_a relationships (roots)')
 parser.add_argument('-names', help='File with methods information (filename, group, label, is_baseline)')
+parser.add_argument('-ia', help='File with information accretion (term, information_accretion)')
 args = parser.parse_args()
 
 
@@ -37,6 +37,8 @@ gt_folder = os.path.normpath(args.gt_dir) + "/"
 benchmark_folder = os.path.normpath(args.filter_dir) + "/" if args.filter_dir else None
 out_folder = os.path.normpath(args.out_dir) + "/"
 split = args.split
+ia_file = args.ia
+
 
 if not os.path.isdir(out_folder):
     os.mkdir(out_folder)
@@ -56,6 +58,13 @@ rootLogger.addHandler(consoleHandler)
 
 # parsing the ontology and for each namespace in the obo file creates a different graph structure
 ontologies = parse_obo(obo_file, add_roots=not args.no_roots)
+
+# Parse and set information accretion
+ia_dict = None
+if ia_file is not None:
+    ia_dict = parse_ia_dict(ia_file)
+    for ont in ontologies:
+        ont.set_ia_array(ia_dict)
 
 # Set gt files
 gt_files = []
@@ -79,26 +88,25 @@ if benchmark_folder:
             benchmark_files.append(os.path.join(root, file))
 logging.debug("Benchmark paths {}".format(benchmark_files))
 
+# Set method information
+methods_dict = {}
+if args.names:
+    with open(args.names) as f:
+        for line in f:
+            if line and line[0] != '#':
+                method, group, label, is_baseline = line.strip().split()
+                methods_dict[method] = (group, label, bool(eval(is_baseline)))
+logging.debug(methods_dict)
 
-pr_sum = {} 
-rc_sum = {}
-toi = {}
+# for each namespace sort term, and identify roots, leaves and used terms
 order = {}
-gts = {}
-toi_order = time.time()
-#for each namespace initialize the precision and recall arrays and computes the terms of interest, roots and leafs 
+toi = {}
 for ont in ontologies:
     ns = ont.get_namespace()
-    pr_sum[ns] = np.zeros((len(tau_arr), 2), dtype='float')
-    rc_sum[ns] = np.zeros(len(tau_arr), dtype='float')
-    toi[ns] = get_toi_idx(ont.dag)
     roots = get_roots_idx(ont.dag)
     leafs = get_leafs_idx(ont.dag)
-    """for i in roots:
-        logging.info(ont.go_list[i]['id'] + " is a "+ ns +" root term") """
-    """for i in leafs:
-        logging.info(ont.go_list[i]['id'] + " is a "+ ns +" leaf term")"""
     order[ns] = top_sort(ont)
+    toi[ns] = get_toi_idx(ont.dag)
     logging.info("{} {} roots, {} leaves".format(ns, len(roots), len(leafs)))
 
 # find the right ontology for each benchmark(filter) file
@@ -131,6 +139,7 @@ if len(ontologies) == 0:
     raise ValueError("Ground truth filenames not matching any OBO namespace")
 
 # parsing the ground truth for each remaining namespace
+gts = {}
 with open(out_folder + "/gt_stat.tsv", "wt") as out_file:
     out_file.write("namespace\texpanded\tdirect\tname\n")
     for ont in ontologies:
@@ -144,138 +153,124 @@ with open(out_folder + "/gt_stat.tsv", "wt") as out_file:
 
             gts[ns] = gt_parser(gt_paths[ns], ont.go_terms, False, b)
 
-            pre = gts[ns].matrix.sum(axis=0)
+            stat_pre = gts[ns].matrix.sum(axis=0)
 
-            _ = propagate_gt(gts[ns], ont, order[ns])
+            _ = propagate(gts[ns], ont, order[ns])
             if b is None:
                 ne[ns] = gts[ns].matrix.shape[0]
             else:
                 ne[ns] = len(b)
             logging.info("Ground truth {} targets {} {} {}".format(ns, len(gts[ns].ids), ne[ns], gts[ns].matrix.any(axis=1).sum()))
 
-            post = gts[ns].matrix.sum(axis=0)
+            stat_post = gts[ns].matrix.sum(axis=0)
 
-            for post, pre, c in sorted(zip(post, pre, gts[ns].terms), reverse=True):
-                out_file.write("{}\t{}\t{}\t{}\n".format(ns, post - pre, pre, c[2]))
+            for stat_post, stat_pre, c in sorted(zip(stat_post, stat_pre, gts[ns].terms), reverse=True):
+                out_file.write("{}\t{}\t{}\t{}\n".format(ns, stat_post - stat_pre, stat_pre, c[2]))
 
 
 # parses each prediction file, removing the proteins not contained in the ground truth
-# computes precision and recall sums that will be divided only at the end of the cycle 
-pr_dict = {}
-rc_dict = {}
-f_dict = {}
-cov_dict = {}
-for file_name in pred_files:
-    name = file_name.replace(pred_folder, '').replace('/', '_')
-    predictions = split_pred_parser(file_name, ontologies, gts)
+# computes precision and recall sums that will be divided only at the end of the cycle
+pr_sum = {}
+rc_sum = {}
+mi_sum = {}
+ru_sum = {}
 
+data = {'ns': [], 'method': [], 'pr': [], 'rc': [], 'f': [], 'cov_f': [], 'mi': [], 'ru': [], 's': [], 'cov_s': []}
+for file_name in pred_files:
+    method = file_name.replace(pred_folder, '').replace('/', '_')
+    group, label, is_baseline = methods_dict.get(method, (method, method, False))
+
+    for ont in ontologies:
+        ns = ont.get_namespace()
+        pr_sum[ns] = np.zeros((len(tau_arr), 2), dtype='float')
+        rc_sum[ns] = np.zeros(len(tau_arr), dtype='float')
+        ru_sum[ns] = np.zeros((len(tau_arr), 2), dtype='float')
+        mi_sum[ns] = np.zeros((len(tau_arr), 2), dtype='float')
+
+    predictions = split_pred_parser(file_name, ontologies, gts)
     for p in predictions:
         ns = p.namespace
         for o in ontologies:
             if o.get_namespace() == ns:
                 ont = o
-        _ = propagate_pred(p, ont, order[ns])
-        pr, rc = compute_f_metrics(p, gts[ns], tau_arr, toi[ns])
+        _ = propagate(p, ont, order[ns])
+
+        pr, rc, ru, mi = compute_metrics(p, gts[ns], tau_arr, toi[ns], ont.ia_array)
         pr_sum[ns] += pr
         rc_sum[ns] += rc
 
+        ru_sum[ns] += ru
+        mi_sum[ns] += mi
+
     # computing the actual value of precision and recall for each threshold
-    pr = {}
-    rc = {}
-    f = {}
-    cov = {}
     for ont in ontologies:
         ns = ont.get_namespace()
+
+        data['ns'].extend([ns] * len(tau_arr))
+        data['method'].extend([method] * len(tau_arr))
+
         n = pr_sum[ns][:, 0]
         d = pr_sum[ns][:, 1]
-        pr[ns] = np.divide(n, d, out=np.zeros_like(n, dtype='float'), where=d!=0)
-        rc[ns] = rc_sum[ns] / ne[ns]
-        f[ns] = compute_f(pr[ns], rc[ns])
-        cov[ns] = d / ne[ns]
-        logging.info("F-max {} {} {}".format(ns, name, max(f[ns])))
+        _pr = np.divide(n, d, out=np.zeros_like(n, dtype='float'), where=d != 0)
+        _rc = rc_sum[ns] / ne[ns]
+        data['pr'].extend(_pr)
+        data['rc'].extend(_rc)
+        data['f'].extend(compute_f(_pr, _rc))
+        data['cov_f'].extend(d / ne[ns])
 
-    pr_dict[name] = pr
-    rc_dict[name] = rc
-    f_dict[name] = f
-    cov_dict[name] = cov
-    for ont in ontologies:
-        ns = ont.get_namespace()
-        pr_sum[ns] = np.zeros((len(tau_arr), 2), dtype='float')
-        rc_sum[ns] = np.zeros(len(tau_arr), dtype='float')
+        # ru[ns] = ru_sum[ns] / ne[ns]
+        # mi[ns] = mi_sum[ns] / ne[ns]
+
+        n = ru_sum[ns][:, 0]
+        d = ru_sum[ns][:, 1]
+        _ru = np.divide(n, d, out=np.zeros_like(n, dtype='float'), where=d != 0)
+
+        n = mi_sum[ns][:, 0]
+        d = mi_sum[ns][:, 1]
+        _mi = np.divide(n, d, out=np.zeros_like(n, dtype='float'), where=d != 0)
+        data['ru'].extend(_ru)
+        data['mi'].extend(_mi)
+        data['s'].extend(compute_s(_ru, _mi))
+        data['cov_s'].extend(d / ne[ns])
+
+# print(data)
+data = pd.DataFrame(data)
+
+# Write results to file
+#
+# with open(out_folder + "/results.tsv", "wt") as out_file:
+#     out_file.write("ns\tmethod\tgroup\tlabel\tis_baseline\tpr\trc\tf\tcov\tru\tmi\ts\tcov\n")
+#     for ns in data:
+#         for method in data[ns]:
+#             # pr, rc, f, cov, ru, mi, s, cov
+#             max_idx = np.argmax(data[ns][method][2])
+#             min_idx = np.argmin(data[ns][method][6][data[ns][method][7] > 0])
+#             # print(ns, data[ns][method][:4] + [ele[max_idx] for ele in data[ns][method][4:8]] + [ele[min_idx] for ele in data[ns][method][8:]])
+#             out_file.write("{}\t{}\t{:.3f}\t{:.3f}\t{:.3f}\t{:.3f}\t{:.3f}\t{:.3f}\t{:.3f}\n".format(ns, method, *[ele[max_idx] for ele in data[ns][method][:5]], *[ele[min_idx] for ele in data[ns][method][5:]]))
+
+# print(data)
 
 
-# Get method information
-g_dict = {}
-l_dict = {}
-baselines = []
-if args.names:
-    with open(args.names) as f:
-        for line in f:
-            if line and line[0] != '#':
-                name, group, label, is_baseline = line.strip().split()
-                g_dict[name] = group
-                l_dict[name] = label
-                if bool(eval(is_baseline)):
-                    baselines.append(name)
-logging.debug(g_dict)
-logging.debug(l_dict)
-logging.debug(baselines)
+# Identify max fmax for each group of methods
+# for ns in data:
+#     g = {}
+#     for method in data[ns]:
+#         g.setdefault(data[ns][method][])
+#     plot_pr_rc(ns, [data[ns][method][2:8] for method in data[ns]], "{}/{}.png".format(ns, out_folder))
 
-
-# Write to file
-names = list(pr_dict.keys())
-namespaces = pr_dict[names[0]].keys()
-bests = {}
-with open(out_folder + "/results.tsv", "wt") as out_file:
-    out_file.write("\t".join(["method", "namespace", "fmax", "precision", "recall", "coverage", "tau"]) + "\n")
-    for ns in namespaces:
-        data = {}
-        for n in names:
-            if pr_dict[n][ns].any() and rc_dict[n][ns].any():
-                max_idx = np.argmax(f_dict[n][ns])
-                group = g_dict.get(n, n)
-                data.setdefault(group, []).append([n, ns, f_dict[n][ns][max_idx], pr_dict[n][ns][max_idx], rc_dict[n][ns][max_idx], cov_dict[n][ns][max_idx], tau_arr[max_idx]])
-
-        # filter by group
-        for g in data:
-            _n, _ns, _fmax, _pr, _rc, _cov, _tau = sorted(data[g], key=lambda x: x[2], reverse=True)[0]
-            # write to file
-            out_file.write("{}\t{}\t{:.3f}\t{:.3f}\t{:.3f}\t{:.3f}\t{:.2f}\n".format(l_dict.get(_n, _n), _ns, _fmax, _pr, _rc, _cov, _tau))
-
-            bests.setdefault(_n, {}).setdefault(_ns, None)
-
-# Remove non-best methods
-for n in list(pr_dict.keys()):
-    if n not in bests:
-        del pr_dict[n]
-        del rc_dict[n]
-        del f_dict[n]
-        del cov_dict[n]
-    else:
-        for ns in list(pr_dict[n].keys()):
-            if ns not in bests[n]:
-                del pr_dict[n][ns]
-                del rc_dict[n][ns]
-                del f_dict[n][ns]
-                del cov_dict[n][ns]
-        if not pr_dict[n]:
-            del pr_dict[n]
-            del rc_dict[n]
-            del f_dict[n]
-            del cov_dict[n]
 
 # Set colors
-c_dict = {}
-cmap = plt.get_cmap('tab20')
-
-for i in range(0, len(names)):
-    c_dict[names[i]] = cmap.colors[i % len(cmap.colors)]
-    if 'naive' in names[i]:
-        c_dict[names[i]] = (1, 0, 0)  # red
-    if 'blast' in names[i]:
-        c_dict[names[i]] = (0, 0, 1)  # blue
-
-plot_graphs(pr_dict, rc_dict, f_dict, cov_dict, out_folder, c_dict, l_dict, baselines)
+# c_dict = {}
+# cmap = plt.get_cmap('tab20')
+#
+# for i in range(0, len(names)):
+#     c_dict[names[i]] = cmap.colors[i % len(cmap.colors)]
+#     if 'naive' in names[i]:
+#         c_dict[names[i]] = (1, 0, 0)  # red
+#     if 'blast' in names[i]:
+#         c_dict[names[i]] = (0, 0, 1)  # blue
+#
+# plot_pr_rc(pr_dict, rc_dict, f_dict, cov_dict, out_folder, c_dict, l_dict, baselines)
 
 
 

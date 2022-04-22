@@ -8,26 +8,39 @@ import time
 
 # class used to contain an ontology 
 class Graph:
-    def __init__(self, dag, go_terms, ontology_type, go_list):
+    def __init__(self, dag, go_terms, ontology_type, go_list, ia_dict=None):
         self.dag = dag 
         self.go_terms = go_terms
         self.ontology_type = ontology_type
         self.go_list = go_list
+        self.ia_array = None
+        if ia_dict is not None:
+            self.set_ia_array(ia_dict)
 
-    def get_id(index):
-        return go_terms[index]['id']
+    def get_id(self, index):
+        return self.go_terms[index]['id']
 
     def get_namespace(self):
         return self.ontology_type
 
+    def set_ia_array(self, ic_dict):
+        n = len(self.go_list)
+        self.ia_array = np.zeros(n, dtype='float')
+        for i in range(0, n):
+            self.ia_array[i] = ic_dict.get(self.go_list[i]['id'], 0.0)
+
+
 class Prediction:
     def __init__(self, ids, scores, idx, namespace=None):
         self.ids = ids
-        self.scores = scores
+        self.matrix = scores
         self.next_idx = idx
         self.n_pred_seq = idx + 1
         self.namespace = namespace
         #self.unused_scores = unused_scores
+
+    def __str__(self):
+        return "\n".join(["{}\t{}\t{}".format(index, self.matrix[index], self.namespace) for index, _id in enumerate(self.ids)])
 
 
 class Ground_truth:
@@ -35,7 +48,6 @@ class Ground_truth:
         self.ids = p_ids
         self.matrix = gt_matrix
         self.terms = terms
-
 
 
 # takes a sparse matrix representing a DAG and returns an array containing the node indexes in topological order
@@ -46,8 +58,8 @@ def top_sort(ont):
     
     # create a vector containing the in-degree of each node 
     in_degree = []
-    for c in range(0,cols):
-        in_degree.append(ont.dag[:,c].sum())
+    for c in range(0, cols):
+        in_degree.append(ont.dag[:, c].sum())
     #find the nodes with in-degree 0 and add them to the queue 
     queue = [index for index, value in enumerate(in_degree) if value == 0]
 
@@ -72,67 +84,28 @@ def top_sort(ont):
         raise Exception("The sparse matrix doesn't represent an acyclic graph")
 
 
-# takes the score matrix (protein on rows and go terms on columns) and a sparse matrix representing a DAG
-# and returns a the score matrix with ptedictions propagated upwards
-def propagate_pred(pred, ont, order=None):
-    if pred.scores.shape[0] == 0:
-        return
-    # get the go term indexes in topological order
-    if order is None:
-        order = top_sort(ont)
-    # find the the deepest node with a score assigned to it 
-    #print(pred.scores.sum(axis=1).sum())
-    deep_begin = time.time()
-    deepest = np.where(np.sum(pred.scores[:,order], axis=0) > 0)[0]
-    if deepest.size != 0:
-        #raise Exception("The score matrix contains no predictions") 
-        order = np.delete(order, [range(0,deepest[0])]) 
-    deep_end = time.time()
-    #else:
-        #print(np.where(np.sum(pred.scores[:,order], axis=0) > 0))
-        #print(pred.ids)
-
-    #deepest = np.where(np.sum(scores, axis=0) > 0)[0]
-    #print(deepest)
-    # for each element in order take find the childes and update the scores on its column with the max score between
-    # its score and the childs score 
-    prop_begin = time.time()
-    for i in order: #range(0,dag.shape[1]): #range(0,len(order))
-        # children search
-        #C = np.where(ont.dag[:,i] != 0)[0]
-        C = ont.go_list[i]['children']
-        if len(C) > 0:
-            cols = np.concatenate((C, [i]))
-            pred.scores[:,i] = pred.scores[:,cols].max(axis=1)
-    prop_end = time.time()
-    return order
-
-def propagate_gt(gt, ont, order=None):
+# takes the score matrix (proteins on rows and terms on columns) and
+# a sparse matrix representing the DAG and returns a new score matrix
+# with terms propagated upwards
+def propagate(gt, ont, order=None):
     if gt.matrix.shape[0] == 0:
         return
     if order is None:
         order = top_sort(ont)
     
-    deepest = np.where(np.sum(gt.matrix[:,order], axis=0) > 0)[0][0]
+    deepest = np.where(np.sum(gt.matrix[:, order], axis=0) > 0)[0][0]
     if deepest.size == 0:
-        raise Exception("The ground truth matrix is empty")
+        raise Exception("The matrix is empty")
     order = np.delete(order, [range(0,deepest)])
 
     for i in order:
-        C = np.where(ont.dag[:,i] != 0)[0]
+        C = np.where(ont.dag[:, i] != 0)[0]
         if C.size > 0:
             cols = np.concatenate((C, [i]))
-            gt.matrix[:,i] = gt.matrix[:,cols].max(axis=1)
+            gt.matrix[:, i] = gt.matrix[:, cols].max(axis=1)
     return order
 
-def ic_to_array(ic_dict, ont):
-    n = len(ont.go_list)
-    ic_arr = np.zeros(n, dtype='float')
-    for i in range(0,n):
-        ic = ic_dict.get(ont.go_list[i]['id'])
-        if ic is not None:
-            ic_arr[i] = ic
-    return ic_arr
+
     
 
 
