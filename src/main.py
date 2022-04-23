@@ -89,14 +89,10 @@ if benchmark_folder:
 logging.debug("Benchmark paths {}".format(benchmark_files))
 
 # Set method information
-methods_dict = {}
+methods = None
 if args.names:
-    with open(args.names) as f:
-        for line in f:
-            if line and line[0] != '#':
-                method, group, label, is_baseline = line.strip().split()
-                methods_dict[method] = (group, label, bool(eval(is_baseline)))
-logging.debug(methods_dict)
+    methods = pd.read_csv(args.names, delim_whitespace=True)
+    logging.debug(methods)
 
 # for each namespace sort term, and identify roots, leaves and used terms
 order = {}
@@ -175,10 +171,9 @@ rc_sum = {}
 mi_sum = {}
 ru_sum = {}
 
-data = {'ns': [], 'method': [], 'pr': [], 'rc': [], 'f': [], 'cov_f': [], 'mi': [], 'ru': [], 's': [], 'cov_s': []}
+data = {'ns': [], 'method': [], 'tau': [], 'pr': [], 'rc': [], 'f': [], 'cov_f': [], 'mi': [], 'ru': [], 's': [], 'cov_s': []}
 for file_name in pred_files:
     method = file_name.replace(pred_folder, '').replace('/', '_')
-    group, label, is_baseline = methods_dict.get(method, (method, method, False))
 
     for ont in ontologies:
         ns = ont.get_namespace()
@@ -208,6 +203,7 @@ for file_name in pred_files:
 
         data['ns'].extend([ns] * len(tau_arr))
         data['method'].extend([method] * len(tau_arr))
+        data['tau'].extend(tau_arr)
 
         n = pr_sum[ns][:, 0]
         d = pr_sum[ns][:, 1]
@@ -233,31 +229,16 @@ for file_name in pred_files:
         data['s'].extend(compute_s(_ru, _mi))
         data['cov_s'].extend(d / ne[ns])
 
-# print(data)
+# add names and groups
 data = pd.DataFrame(data)
+data = pd.merge(data, methods, left_on='method', right_on='name', how='left')
+data['group'].fillna(data['method'], inplace=True)
+data['label'].fillna(data['method'], inplace=True)
+data['is_baseline'].fillna(False, inplace=True)
+data.set_index(['ns', 'group', 'method'], inplace=True)
 
-# Write results to file
-#
-# with open(out_folder + "/results.tsv", "wt") as out_file:
-#     out_file.write("ns\tmethod\tgroup\tlabel\tis_baseline\tpr\trc\tf\tcov\tru\tmi\ts\tcov\n")
-#     for ns in data:
-#         for method in data[ns]:
-#             # pr, rc, f, cov, ru, mi, s, cov
-#             max_idx = np.argmax(data[ns][method][2])
-#             min_idx = np.argmin(data[ns][method][6][data[ns][method][7] > 0])
-#             # print(ns, data[ns][method][:4] + [ele[max_idx] for ele in data[ns][method][4:8]] + [ele[min_idx] for ele in data[ns][method][8:]])
-#             out_file.write("{}\t{}\t{:.3f}\t{:.3f}\t{:.3f}\t{:.3f}\t{:.3f}\t{:.3f}\t{:.3f}\n".format(ns, method, *[ele[max_idx] for ele in data[ns][method][:5]], *[ele[min_idx] for ele in data[ns][method][5:]]))
-
-# print(data)
-
-
-# Identify max fmax for each group of methods
-# for ns in data:
-#     g = {}
-#     for method in data[ns]:
-#         g.setdefault(data[ns][method][])
-#     plot_pr_rc(ns, [data[ns][method][2:8] for method in data[ns]], "{}/{}.png".format(ns, out_folder))
-
+plot_pr_rc(data, out_folder)
+# plot_mi_ru(data[data['ns'] == ns], "{}/{}.png".format(ns, out_folder))
 
 # Set colors
 # c_dict = {}
