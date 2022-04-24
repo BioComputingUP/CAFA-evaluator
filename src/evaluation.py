@@ -105,219 +105,92 @@ def compute_s(ru, mi):
     # return np.where(np.isnan(ru), mi, np.sqrt(ru + np.nan_to_num(mi)))
 
 
-# def calc_ia(go_count_file, go_adj):
-#     """
-#     The negative logarithm of the conditional probability of a term being
-#     annotated given that all of its parents are annotated:
-#     ia(t) = -log P(t=1 | Pa(t)=1),
-#     where Pa(t) is the parents of term t.
-#
-#     W. Clark and P. Radivojac, Information theoretic evaluation of predicted
-#     ontology annotations. Bioinformatics, 2013.
-#     """
-#
-#     go_count = parse_go_count(go_count_file)
-#
-#     ancestor_count = {}
-#     for go_id, anchestors in go_adj.items():
-#         ancestor_count.setdefault(go_id, 1)
-#         for a in anchestors:
-#             ancestor_count[go_id] += go_count.get(a, 0)
-#
-#     # Calculate information content
-#     go_ia = {}
-#     for go in go_adj.keys():
-#         if go_count.get(go):
-#             go_ia[go] = max(0.0, -math.log(float(go_count[go]) / ancestor_count[go]))
-#         else:
-#             go_ia[go] = 0.0
-#
-#     return go_ia
-
-
-# def plot_prrc_curve(pr, rc, name, output_path='', index=None):
-#     idx = []
-#     for i in range(0,len(pr)):
-#         if pr[i] > 0 and rc[i] > 0 and rc[i] < 1:
-#             idx.append(i)
-#     fig, ax = plt.subplots()
-#     ax.plot(rc[idx], pr[idx])
-#     ax.set_xlabel('Recall')
-#     ax.set_ylabel('Precision')
-#     ax.set_title(name)
-#     plt.xlim([0,1])
-#     plt.ylim([0,1])
-#     if index is not None:
-#         plt.plot(pr[index],rc[index], 'ro')
-#     plt.savefig(output_path+name+".jpg")
-#     plt.close()
-
-
-# plots a graph for each different namespace containing the curves for each (or the best based on f) team's prediction
-# def plot_pr_rc(pr, rc, f, cov, output_path, c_dict=None, l_dict=None, baselines=None):
-#     names = list(pr.keys())
-#
-#     # Put the baselines at the bottom
-#     if baselines:
-#         names = sorted(names, key=lambda x: x in baselines, reverse=True)
-#
-#     namespaces = pr[names[0]].keys()
-#
-#     for ns in namespaces:
-#         f_max = []
-#         fig, ax = plt.subplots(figsize=(10, 10))
-#
-#         for n in names:
-#             if pr[n][ns].any() and rc[n][ns].any():
-#                 max_idx = np.argmax(f[n][ns])
-#                 idx = []
-#                 for i in range(0, len(pr[n][ns])):
-#                     if pr[n][ns][i] > 0 and 0 < rc[n][ns][i] < 1:
-#                         idx.append(i)
-#
-#                 label = l_dict.get(n, n) if l_dict is not None else n
-#                 color = c_dict.get(n) if c_dict is not None else None
-#
-#                 if baselines and n in baselines:
-#                     f_max.append(0)  # trick to put baselines at the bottom of the legend
-#                     ax.plot(rc[n][ns][idx], pr[n][ns][idx], '--',
-#                             label="{} F={:.2f} (C={:.2f})".format(label, f[n][ns][max_idx], cov[n][ns][max_idx]),
-#                             c=color, linewidth=2)
-#                 else:
-#                     f_max.append(f[n][ns][max_idx])
-#                     ax.plot(rc[n][ns][idx], pr[n][ns][idx],
-#                             label="{} F={:.2f} (C={:.2f})".format(label, f[n][ns][max_idx], cov[n][ns][max_idx]),
-#                             c=color)
-#
-#                 plt.yticks(np.arange(0, 1, 0.1), fontsize=16)
-#                 plt.xticks(fontsize=16)
-#                 plt.plot(rc[n][ns][max_idx], pr[n][ns][max_idx], 'o', c=color)
-#
-#
-#         handles, labels = ax.get_legend_handles_labels()
-#         labels2 = []
-#         handles2 = []
-#
-#         lab_idx = list(np.argsort(f_max))
-#         lab_idx.reverse()
-#
-#         for i in lab_idx:
-#             labels2.append(labels[i])
-#             handles2.append(handles[i])
-#
-#         ax.legend(handles2, labels2, bbox_to_anchor=(1.05, 1), loc='upper left', prop={'size': 15})
-#         # Set legend on top of the plot
-#         # ax.legend(handles2, labels2, bbox_to_anchor=(0, 1), loc='lower left', prop={'size': 15}, ncol=int(math.sqrt(len(labels)))-1)
-#         # ax.set_title(ns, fontsize=20)
-#         ax.set_ylabel("Precision", fontsize=18)
-#         ax.set_xlabel("Recall", fontsize=18)
-#         plt.xlim([0, 1])
-#         plt.ylim([0, 1])
-#         plt.savefig(output_path+"/"+ns, bbox_inches='tight')
-#         plt.close('all')
-
-
 # plots a graph for each different namespace containing the curves for each (or the best based on f) team's prediction
 def plot_pr_rc(data, out_folder):
-    # Set colors
-    # c_dict = {}
-    cmap = plt.get_cmap('tab20')
 
-    # for i in range(0, len(names)):
-    #     c_dict[names[i]] = cmap.colors[i % len(cmap.colors)]
-    #     if 'naive' in names[i]:
-    #         c_dict[names[i]] = (1, 0, 0)  # red
-    #     if 'blast' in names[i]:
-    #         c_dict[names[i]] = (0, 0, 1)  # blue
-
+    cmap = plt.get_cmap('tab10')
     groups = data.index.get_level_values('group').unique()
-
-    # cmap.colors[i % len(cmap.colors)]
 
     for ns, df_ns in data.groupby(level='ns'):
         fig, ax = plt.subplots(figsize=(10, 10))
 
-        # filter groups (1 method per group
+        # identify the best method for each group based on f max
         best_methods = []
         for group, df_g in df_ns.groupby(level='group'):
             best_methods.append(df_g['f'].idxmax())
 
-        # plor the curves
-        for group, df_g in df_ns.loc[best_methods].sort_values(by=['is_baseline', 'f'], ascending=[False, False]).groupby(level='group'):
-            df_g.sort_values(by='tau', inplace=True)
-            df_g.set_index('tau', append=True, inplace=True)
-            best = df_g.loc[df_g['f'].idxmax()]
-            print(best)
+        # sort methods based on f
+        df_best_methods = df_ns.loc[best_methods].sort_values(by=['is_baseline', 'f'], ascending=[True, False])
 
+        # sort threshold
+        df_best_methods = df_best_methods.set_index('tau', append=True).groupby(level='method', group_keys=False, sort=False).apply(lambda x: x.sort_index(level='tau', ascending=False))
+
+        # save to file
+        df_best_methods.to_csv("{}/prrc_{}.tsv".format(out_folder, ns), sep='\t', float_format="%.3f")
+
+        # plot the curves
+        for method, df_m in df_best_methods.groupby(level='method', sort=False):
+            best = df_m.loc[df_m['f'].idxmax()]
             color = cmap.colors[groups.get_loc(best.name[1]) % len(cmap.colors)]
-            ax.plot(df_g['rc'], df_g['pr'], label="{} F={:.2f} (C={:.2f})".format(best['label'], best['f'], best['cov_f']), color=color)
+            if 'blast' in best['label'].lower():
+                color = (0, 0, 1)  # blue
+            elif 'naive' in best['label'].lower():
+                color = (1, 0, 0)  # red
+
+            ax.plot(df_m['rc'], df_m['pr'], '--' if best['is_baseline'] else '-', label="{} (F={:.2f},C={:.2f})".format(best['label'], best['f'], best['cov_f']), color=color)
             plt.plot(best['rc'], best['pr'], 'o', color=color)
 
         ax.legend()
-        ax.set_ylabel("Precision", fontsize=18)
-        ax.set_xlabel("Recall", fontsize=18)
+        # ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', prop={'size': 15})
+        # ax.legend(bbox_to_anchor=(0, 1), loc='lower left', prop={'size': 15}, ncol=int(math.sqrt(len(labels)))-1)
+        ax.set_ylabel("Precision") #, fontsize=18)
+        ax.set_xlabel("Recall") #, fontsize=18)
         plt.xlim([0, 1])
         plt.ylim([0, 1])
         plt.savefig("{}/prrc_{}.png".format(out_folder, ns), bbox_inches='tight')
         plt.close('all')
 
 
+def plot_mi_ru(data, out_folder):
 
-    # for n in names:
-    #     if pr[n][ns].any() and rc[n][ns].any():
-    #         max_idx = np.argmax(f[n][ns])
-    #         idx = []
-    #         for i in range(0, len(pr[n][ns])):
-    #             if pr[n][ns][i] > 0 and 0 < rc[n][ns][i] < 1:
-    #                 idx.append(i)
-    #
-    #         label = l_dict.get(n, n) if l_dict is not None else n
-    #         color = c_dict.get(n) if c_dict is not None else None
-    #
-    #         if baselines and n in baselines:
-    #             f_max.append(0)  # trick to put baselines at the bottom of the legend
-    #             ax.plot(rc[n][ns][idx], pr[n][ns][idx], '--',
-    #                     label="{} F={:.2f} (C={:.2f})".format(label, f[n][ns][max_idx], cov[n][ns][max_idx]),
-    #                     c=color, linewidth=2)
-    #         else:
-    #             f_max.append(f[n][ns][max_idx])
-    #             ax.plot(rc[n][ns][idx], pr[n][ns][idx],
-    #                     label="{} F={:.2f} (C={:.2f})".format(label, f[n][ns][max_idx], cov[n][ns][max_idx]),
-    #                     c=color)
-    #
-    #         plt.yticks(np.arange(0, 1, 0.1), fontsize=16)
-    #         plt.xticks(fontsize=16)
-    #         plt.plot(rc[n][ns][max_idx], pr[n][ns][max_idx], 'o', c=color)
-    #
-    #
-    #     handles, labels = ax.get_legend_handles_labels()
-    #     labels2 = []
-    #     handles2 = []
-    #
-    #     lab_idx = list(np.argsort(f_max))
-    #     lab_idx.reverse()
-    #
-    #     for i in lab_idx:
-    #         labels2.append(labels[i])
-    #         handles2.append(handles[i])
-    #
-    #     ax.legend(handles2, labels2, bbox_to_anchor=(1.05, 1), loc='upper left', prop={'size': 15})
-    #     # Set legend on top of the plot
-    #     # ax.legend(handles2, labels2, bbox_to_anchor=(0, 1), loc='lower left', prop={'size': 15}, ncol=int(math.sqrt(len(labels)))-1)
-    #     # ax.set_title(ns, fontsize=20)
-    #     ax.set_ylabel("Precision", fontsize=18)
-    #     ax.set_xlabel("Recall", fontsize=18)
-    #     plt.xlim([0, 1])
-    #     plt.ylim([0, 1])
-    #     plt.savefig(output_path+"/"+ns, bbox_inches='tight')
-    #     plt.close('all')
+    cmap = plt.get_cmap('tab10')
+    groups = data.index.get_level_values('group').unique()
 
+    for ns, df_ns in data.groupby(level='ns'):
+        fig, ax = plt.subplots(figsize=(10, 10))
 
-def plot_mi_ru():
-    # _data = data[data['cov_s'] > 0]
-    # best_s = _data.groupby(['ns', 'method'])['s'].transform(min) == _data['s']
-    # _data[best_s].drop_duplicates().to_csv(out_folder + "/results_s.tsv",
-    #                                        columns=['ns', 'method', 'group', 'label', 'mi', 'ru', 's', 'cov_s'],
-    #                                        index=False, float_format='%.3f', sep='\t')
+        # identify the best method for each group based on s min
+        best_methods = []
+        for group, df_g in df_ns[df_ns['cov_s'] > 0].groupby(level='group'):
+            best_methods.append(df_g['s'].idxmin())
 
-    return
+        # sort methods based on s
+        df_best_methods = df_ns[df_ns['cov_s'] > 0].loc[best_methods].sort_values(by=['is_baseline', 's'], ascending=[True, True])
+
+        # sort threshold
+        df_best_methods = df_best_methods.set_index('tau', append=True).groupby(level='method', group_keys=False, sort=False).apply(
+            lambda x: x.sort_index(level='tau', ascending=False))
+
+        # save to file
+        df_best_methods.to_csv("{}/miru_{}.tsv".format(out_folder, ns), sep='\t', float_format="%.3f")
+
+        # plot the curves
+        for method, df_m in df_best_methods.groupby(level='method', sort=False):
+            best = df_m.loc[df_m['s'].idxmin()]
+            color = cmap.colors[groups.get_loc(best.name[1]) % len(cmap.colors)]
+            if 'blast' in best['label'].lower():
+                color = (0, 0, 1)  # blue
+            elif 'naive' in best['label'].lower():
+                color = (1, 0, 0)  # red
+
+            ax.plot(df_m['ru'], df_m['mi'], '--' if best['is_baseline'] else '-',
+                    label="{} (S={:.2f},C={:.2f})".format(best['label'], best['s'], best['cov_s']), color=color)
+            plt.plot(best['ru'], best['mi'], 'o', color=color)
+
+        ax.legend()
+        ax.set_ylabel("Misinformation")  # , fontsize=18)
+        ax.set_xlabel("Remaining uncertainty")  # , fontsize=18)
+        plt.xlim([0, 5])
+        plt.ylim(bottom=0)
+        plt.savefig("{}/miru_{}.png".format(out_folder, ns), bbox_inches='tight')
+        plt.close('all')

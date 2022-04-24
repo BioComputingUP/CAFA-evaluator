@@ -1,6 +1,6 @@
 from graph import top_sort, propagate
 from parser import parse_obo, parse_benchmark, gt_parser, split_pred_parser, parse_ia_dict
-from evaluation import get_toi_idx, get_leafs_idx, get_roots_idx, compute_metrics, compute_f, compute_s, plot_pr_rc
+from evaluation import get_toi_idx, get_leafs_idx, get_roots_idx, compute_metrics, compute_f, compute_s, plot_pr_rc, plot_mi_ru
 import argparse
 import logging
 import os
@@ -238,21 +238,7 @@ data['is_baseline'].fillna(False, inplace=True)
 data.set_index(['ns', 'group', 'method'], inplace=True)
 
 plot_pr_rc(data, out_folder)
-# plot_mi_ru(data[data['ns'] == ns], "{}/{}.png".format(ns, out_folder))
-
-# Set colors
-# c_dict = {}
-# cmap = plt.get_cmap('tab20')
-#
-# for i in range(0, len(names)):
-#     c_dict[names[i]] = cmap.colors[i % len(cmap.colors)]
-#     if 'naive' in names[i]:
-#         c_dict[names[i]] = (1, 0, 0)  # red
-#     if 'blast' in names[i]:
-#         c_dict[names[i]] = (0, 0, 1)  # blue
-#
-# plot_pr_rc(pr_dict, rc_dict, f_dict, cov_dict, out_folder, c_dict, l_dict, baselines)
-
+plot_mi_ru(data, out_folder)
 
 
 
