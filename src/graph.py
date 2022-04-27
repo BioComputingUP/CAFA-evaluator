@@ -1,18 +1,17 @@
 import numpy as np
-import time
 
-# DAG is the adjacence matrix (sparse) which represent a Directed Acyclic Graph where DAG(i,j) = 1
-# means that the go term i is part of j
 
-## The score matrix contains the scores given by the predictor for every node of the ontology
-
-# class used to contain an ontology 
 class Graph:
+    """
+    Class used to contain an ontology
+    DAG is the adjacence matrix (sparse) which represent a Directed Acyclic Graph where
+    DAG(i,j) = 1 means that the go term i is_a (or is part_of) j
+    """
     def __init__(self, dag, go_terms, ontology_type, go_list, ia_dict=None):
-        self.dag = dag 
-        self.go_terms = go_terms
-        self.ontology_type = ontology_type
-        self.go_list = go_list
+        self.dag = dag  # [[], ...]  terms X terms matrix
+        self.go_terms = go_terms  # {term: {index: , name: , namespace: , def: }
+        self.ontology_type = ontology_type  # namespace
+        self.go_list = go_list  # [{id: term, name:, namespace: , def:, adg: [], children: []}, ...]
         self.ia_array = None
         if ia_dict is not None:
             self.set_ia_array(ia_dict)
@@ -31,19 +30,21 @@ class Graph:
 
 
 class Prediction:
+    """
+    The score matrix contains the scores given by the predictor for every node of the ontology
+    """
     def __init__(self, ids, scores, idx, namespace=None):
         self.ids = ids
         self.matrix = scores
         self.next_idx = idx
         self.n_pred_seq = idx + 1
         self.namespace = namespace
-        #self.unused_scores = unused_scores
 
     def __str__(self):
         return "\n".join(["{}\t{}\t{}".format(index, self.matrix[index], self.namespace) for index, _id in enumerate(self.ids)])
 
 
-class Ground_truth:
+class GroundTruth:
     def __init__(self, p_ids, gt_matrix, terms=None):
         self.ids = p_ids
         self.matrix = gt_matrix
@@ -60,11 +61,11 @@ def top_sort(ont):
     in_degree = []
     for c in range(0, cols):
         in_degree.append(ont.dag[:, c].sum())
-    #find the nodes with in-degree 0 and add them to the queue 
+    # find the nodes with in-degree 0 and add them to the queue
     queue = [index for index, value in enumerate(in_degree) if value == 0]
 
     # for each element of the queue increment visits, add them to the list of ordered nodes and decrease the in-degree
-    #of the neighbor nodes and add them to the queue if they reach in-degree == 0
+    # of the neighbor nodes and add them to the queue if they reach in-degree == 0
     while queue:
         visited += 1
         idx = queue.pop(0)

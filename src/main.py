@@ -1,44 +1,32 @@
 from graph import top_sort, propagate
-from parser import parse_obo, parse_benchmark, gt_parser, split_pred_parser, parse_ia_dict
+from parser import parse_obo, gt_parser, split_pred_parser, parse_ia_dict
 from evaluation import get_toi_idx, get_leafs_idx, get_roots_idx, compute_metrics, compute_f, compute_s, plot_pr_rc, plot_mi_ru
 import argparse
 import logging
 import os
 import numpy as np
-import matplotlib.pyplot as plt
 import pandas as pd
-
 
 
 namespaces = {"bpo": "biological_process", "cco": "cellular_component", "mfo": "molecular_function",
  "disorderfunction": "Disorder_function", "interactionpartner": "Interaction_partner",
  "structuralstate": "Structural_state", "structuraltransition": "Structural_transition"}
 
-
 parser = argparse.ArgumentParser(description='CAFA-evaluator. Calculate precision-recall plots and F-max')
 parser.add_argument('obo_file', help='Ontology file in OBO format')
 parser.add_argument('pred_dir', help='Predictions directory. Sub-folders are iterated recursively')
 parser.add_argument('gt_dir', help='Ground truth directory. Sub-folders are iterated recursively')
 parser.add_argument('-out_dir', help='Output directory. Default to \"results\"', default='results')
-parser.add_argument('-filter_dir', help='Benchmark directory. By default the software consider '
-                                        'all (and only) targets in the ground truth. Here you can provide'
-                                        'a subset of targets to consider')
-parser.add_argument('-split', help='Consider namespaces separately', default=1)
-parser.add_argument('-no_roots', action='store_true', default=False, help='Exclude terms without is_a relationships (roots)')
 parser.add_argument('-names', help='File with methods information (filename, group, label, is_baseline)')
 parser.add_argument('-ia', help='File with information accretion (term, information_accretion)')
 args = parser.parse_args()
-
 
 tau_arr = np.arange(0.01, 1, 0.01)  # array of tau, used to compute precision and recall at different score threshold
 obo_file = args.obo_file
 pred_folder = os.path.normpath(args.pred_dir) + "/"  # add the tailing "/"
 gt_folder = os.path.normpath(args.gt_dir) + "/"
-benchmark_folder = os.path.normpath(args.filter_dir) + "/" if args.filter_dir else None
 out_folder = os.path.normpath(args.out_dir) + "/"
-split = args.split
 ia_file = args.ia
-
 
 if not os.path.isdir(out_folder):
     os.mkdir(out_folder)
@@ -57,7 +45,7 @@ consoleHandler.setFormatter(logFormatter)
 rootLogger.addHandler(consoleHandler)
 
 # parsing the ontology and for each namespace in the obo file creates a different graph structure
-ontologies = parse_obo(obo_file, add_roots=not args.no_roots)
+ontologies = parse_obo(obo_file)
 
 # Parse and set information accretion
 ia_dict = None
@@ -80,19 +68,12 @@ for root, dirs, files in os.walk(pred_folder):
         pred_files.append(os.path.join(root, file))
 logging.debug("Prediction paths {}".format(pred_files))
 
-# Set benchmark files (optional)
-benchmark_files = []
-if benchmark_folder:
-    for root, dirs, files in os.walk(benchmark_folder):
-        for file in files:
-            benchmark_files.append(os.path.join(root, file))
-logging.debug("Benchmark paths {}".format(benchmark_files))
-
 # Set method information
 methods = None
 if args.names:
     methods = pd.read_csv(args.names, delim_whitespace=True)
     logging.debug(methods)
+logging.debug("Methods {}".format(methods))
 
 # for each namespace sort term, and identify roots, leaves and used terms
 order = {}
@@ -106,15 +87,10 @@ for ont in ontologies:
     logging.info("{} {} roots, {} leaves".format(ns, len(roots), len(leafs)))
 
 # find the right ontology for each benchmark(filter) file
-benchmarks = {}
-gt_paths = {} 
+gt_paths = {}
 predictions = {}
 ne = {}
 for k, v in namespaces.items():
-    for b in benchmark_files:
-        benchmarks.setdefault(v, [])
-        if k.lower() in b.lower():
-            benchmarks[v].append(parse_benchmark(b))
     for gt in gt_files:
         gt_paths.setdefault(v)
         if k.lower() in gt.lower():
@@ -137,31 +113,25 @@ if len(ontologies) == 0:
 # parsing the ground truth for each remaining namespace
 gts = {}
 with open(out_folder + "/gt_stat.tsv", "wt") as out_file:
-    out_file.write("namespace\texpanded\tdirect\tname\n")
+    out_file.write("namespace\texpanded\tdirect\tterm\tname\n")
     for ont in ontologies:
         ns = ont.get_namespace()
         if gt_paths.get(ns) is not None:
-            b_list = benchmarks.get(ns)
-            if b_list is not None:
-                [b] = b_list
-            else:
-                b = None
 
-            gts[ns] = gt_parser(gt_paths[ns], ont.go_terms, False, b)
+            gts[ns] = gt_parser(gt_paths[ns], ont.go_terms)
 
             stat_pre = gts[ns].matrix.sum(axis=0)
 
             _ = propagate(gts[ns], ont, order[ns])
-            if b is None:
-                ne[ns] = gts[ns].matrix.shape[0]
-            else:
-                ne[ns] = len(b)
+
+            ne[ns] = gts[ns].matrix.shape[0]
+
             logging.info("Ground truth {} targets {} {} {}".format(ns, len(gts[ns].ids), ne[ns], gts[ns].matrix.any(axis=1).sum()))
 
             stat_post = gts[ns].matrix.sum(axis=0)
 
             for stat_post, stat_pre, c in sorted(zip(stat_post, stat_pre, gts[ns].terms), reverse=True):
-                out_file.write("{}\t{}\t{}\t{}\n".format(ns, stat_post - stat_pre, stat_pre, c[2]))
+                out_file.write("{}\t{}\t{}\t{}\t{}\n".format(ns, stat_post - stat_pre, stat_pre, c[1], c[2]))
 
 
 # parses each prediction file, removing the proteins not contained in the ground truth

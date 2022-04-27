@@ -1,12 +1,10 @@
-import numpy as np
 from graph import *
-import time
-import xml.etree.ElementTree as ET
+import copy
 import logging
 
 
 # parses a obo file and returns a list of ontologies, one for each different namespace
-def parse_obo(obo_file, add_roots=True, rel=["is_a", "part_of"]):
+def parse_obo(obo_file, rel=["is_a", "part_of"]):
     namespaces = set()
     rel_list = []
     go_dict = {}
@@ -42,37 +40,37 @@ def parse_obo(obo_file, add_roots=True, rel=["is_a", "part_of"]):
                     # add (temp_id,v) tuple to the relation list
                     s = v.split('!')[0].strip()
                     # rel_list.append([temp_id, s, temp_namespace])
+
                     temp_rel.append(s)
                 elif k == "relationship" and v.startswith("part_of") and "part_of" in rel:
                     s = v.split()[1].strip()
                     temp_rel.append(s)
                     # rel_list.append([temp_id, s, temp_namespace])
+
         # Last record
         go_dict[temp_id] = {'name': temp_name, 'namespace': temp_namespace, 'def': temp_def, 'alt_id': temp_alt_id, 'rel': temp_rel}
-                    
-    go_struct = {}
-    go_lists = {}
-    dags = {}
-    idxs = {}
-    for ns in namespaces:
-        go_struct[ns] = {}
-        go_lists[ns] = []
-        idxs[ns] = 0
+
+    go_struct = {}  # {ns: {term: {index: , name: , namespace: , def: }}
+    go_lists = {}  # {ns: [{id: term, name:, namespace: , def:, adg: [], children: []}, ...]}
+    dags = {}  # {ns: [[], ...]}  terms X terms matrix
+    idxs = {}  # {ns: <counter>}
     
     for go_id, term in go_dict.items():
-        if add_roots or len(term.get('rel', [])) > 0:
+        ns = term['namespace']
 
-            rel_list.extend([[go_id, rel, term['namespace']] for rel in term['rel'] if add_roots or len(go_dict[rel].get('rel', [])) > 0])
+        rel_list.extend([[go_id, rel, term['namespace']] for rel in term['rel']])
 
-            ns = term['namespace']
-            name = term['name']
-            definition = term['def']
-            alt_ids = term['alt_id']
-            go_struct[ns][go_id] = {'index': idxs[ns], 'name': name, 'namespace': ns, 'def': definition}
-            go_lists[ns].append({'id': go_id, 'name': name, 'namespace': ns, 'def': definition, 'adj': [], 'children': []})
-            for a_id in alt_ids:
-                go_struct[ns][a_id] = {'index': idxs[ns], 'name': name, 'namespace': ns, 'def': definition}
-            idxs[ns] += 1
+        go_lists.setdefault(ns, [])
+        go_lists[ns].append({'id': go_id, 'name': term['name'], 'namespace': ns, 'def': term['def'], 'adj': [], 'children': []})
+
+        idxs.setdefault(ns, 0)
+        go_struct.setdefault(ns, {})
+        go_struct[ns][go_id] = {'index': idxs[ns], 'name': term['name'], 'namespace': ns, 'def': term['def']}
+        for a_id in term['alt_id']:
+            go_struct.setdefault(ns, {})
+            go_struct[ns][a_id] = copy.copy(go_struct[ns][go_id]) # {'index': idxs[ns], 'name': name, 'namespace': ns, 'def': definition}
+
+        idxs[ns] += 1
 
     for ns in namespaces:
         go_struct[ns]['n'] = idxs[ns]
@@ -87,7 +85,7 @@ def parse_obo(obo_file, add_roots=True, rel=["is_a", "part_of"]):
 
     ontologies = []
     for ns in namespaces:
-        ontologies.append(Graph(dags[ns], go_struct[ns], ns, go_lists[ns]))    
+        ontologies.append(Graph(dags[ns], go_struct[ns], ns, go_lists[ns]))
     
     return ontologies
 
@@ -189,7 +187,7 @@ def split_pred_parser(pred_file, ontologies , gts):
 
 # parses a ground truth file, using the dictionary of go terms to remove go terms that are not contained in the ontology
 # it is possible to use a benchmark file in order to filter the protein ids in the ground truth
-def gt_parser(gt_file, go_terms, split, benchmark=None):
+def gt_parser(gt_file, go_terms):
     idx = 0
     rel_list = []
     gt_ids = {}
@@ -199,42 +197,20 @@ def gt_parser(gt_file, go_terms, split, benchmark=None):
             if line and len(line) == 2:
                 p_id, go_id = line[:2]
                 #if p_id.startswith("T"):
-                if benchmark is not None:
-                    if p_id in benchmark and p_id not in gt_ids:
-                        gt_ids[p_id] = idx
-                        idx += 1
-                else:
-                    if p_id not in gt_ids:
-                        gt_ids[p_id] = idx
-                        idx += 1
+                if p_id not in gt_ids:
+                    gt_ids[p_id] = idx
+                    idx += 1
                 rel_list.append([p_id, go_id])
     n = len(gt_ids)
-    
-    if split:
-        # TODO generalize for any number of sub-namespaces
-        gt1 = np.zeros((n, len(go_terms[0])), dtype='bool')
-        gt2 = np.zeros((n, len(go_terms[1])), dtype='bool')
-        gt3 = np.zeros((n, len(go_terms[2])), dtype='bool')
 
-        for p_id, go_id in rel_list:
-            if go_terms[0].get(go_id) is not None:
-                gt1[gt_ids[p_id], go_terms[0][go_id]['index']] = 1
-            elif go_terms[0].get(go_id) is not None:
-                gt2[gt_ids[p_id], go_terms[1][go_id]['index']] = 1
-            elif go_terms[0].get(go_id) is not None:
-                gt3[gt_ids[p_id], go_terms[2][go_id]['index']] = 1
-            else: 
-                continue #empty so there is no error if a go_id is not in the onotlogies
-        return Ground_truth(gt_ids, gt1), Ground_truth(gt_ids, gt2), Ground_truth(gt_ids, gt3)
-    else:
-        terms = sorted([(v['index'], k, v['name']) for k, v in go_terms.items() if k != 'n'])
-        gt = np.zeros((n, go_terms['n']), dtype='bool')
-        for p_id, go_id in rel_list:
-            if go_id in go_terms and p_id in gt_ids:
-                gt[gt_ids[p_id], go_terms[go_id]['index']] = 1
-            elif go_id not in go_terms:
-                logging.info("the term " + go_id + " is not contained in the ontology")
-        return Ground_truth(gt_ids, gt, terms=terms)
+    terms = sorted([(v['index'], k, v['name']) for k, v in go_terms.items() if k != 'n'])
+    gt = np.zeros((n, go_terms['n']), dtype='bool')
+    for p_id, go_id in rel_list:
+        if go_id in go_terms and p_id in gt_ids:
+            gt[gt_ids[p_id], go_terms[go_id]['index']] = 1
+        elif go_id not in go_terms:
+            logging.debug("the term " + go_id + " is not contained in the ontology")
+    return GroundTruth(gt_ids, gt, terms=terms)
     
 
 def parse_pred_paths(paths_file):
