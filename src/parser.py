@@ -1,10 +1,14 @@
 from graph import *
 import copy
 import logging
-
+from goatools import obo_parser                 # Parnal 10/20/22
 
 # parses a obo file and returns a list of ontologies, one for each different namespace
 def parse_obo(obo_file, rel=["is_a", "part_of"]):
+
+    # create a GODag object
+    go_graph = obo_parser.GODag(obo_file)       # Parnal 10/20/22
+
     namespaces = set()
     rel_list = []
     go_dict = {}
@@ -44,7 +48,10 @@ def parse_obo(obo_file, rel=["is_a", "part_of"]):
                     temp_rel.append(s)
                 elif k == "relationship" and v.startswith("part_of") and "part_of" in rel:
                     s = v.split()[1].strip()
-                    temp_rel.append(s)
+                    if go_graph[temp_id].namespace != go_graph[s].namespace:    # Parnal 10/20/22
+                        continue                                                # Parnal 10/20/22
+                    else:                                                       # Parnal 10/20/22
+                        temp_rel.append(s)                                      # Parnal 10/20/22
                     # rel_list.append([temp_id, s, temp_namespace])
 
         # Last record
