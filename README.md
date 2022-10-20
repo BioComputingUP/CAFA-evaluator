@@ -16,7 +16,7 @@ intrinsic disorder function predictions against [DisProt](https://disprot.org/) 
 
 To run CAFA-evaluator simply call **main.py** in the src/ folder with the following arguments:
 
-Mandatory
+Mandatory (positional arguments)
 * *Ontology file* containing the structure of the terms in OBO format
 
 * *Prediction folder* with prediction files. Sub-folders are processed recursively and the sub-folder name is used as prefix
@@ -26,11 +26,12 @@ The ontology namespace has to be hardcoded in the filename, e.g. gt_*bpo*_.txt o
 
 Optional
 
-* *Output folder*
-* *Benchmark folder* with benchmark files, one for each namespace (sub-ontology). 
+* *-out_dir* output folder
+* *-filter_dir* benchmark folder with benchmark files, one for each namespace (sub-ontology). 
 The evaluation is performed considering only the targets listed in these files. 
 The ontology namespace has to be hardcoded in the filename, e.g. bm_*bpo*_.txt or *disorderfunction*.tsv
-
+* *-no_roots* exclude terms without is_a relationships (roots)
+* *-names* file with methods information (filename, group, label, is_baseline)
 
 
 ### Namespaces (sub-ontologies)
@@ -42,9 +43,15 @@ The key is the string matched in the ground truth and benchmark files,
 while values correspond to the namespace field in the OBO file. 
 
 ~~~Python3
-namespaces = {"bpo": "biological_process", "cco": "cellular_component", "mfo": "molecular_function",
- "disorderfunction": "Disorder function", "interactionpartner": "Interaction partner",
- "structuralstate": "Structural state", "structuraltransition": "Structural transition"}
+namespaces = {
+    "bpo": "biological_process", 
+    "cco": "cellular_component", 
+    "mfo": "molecular_function",
+    "disorderfunction": "Disorder function", 
+    "interactionpartner": "Interaction partner", 
+    "structuralstate": "Structural state", 
+    "structuraltransition": "Structural transition"
+}
 ~~~
 
 
