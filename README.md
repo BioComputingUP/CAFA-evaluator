@@ -14,6 +14,7 @@ intrinsic disorder function predictions against [DisProt](https://disprot.org/) 
 - numpy
 - logging
 - matplotlib
+- goatools
 
 ## HowTo
 
