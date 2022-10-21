@@ -54,7 +54,7 @@ modify this dictionary which is hardcoded in *main.py*.
 The key is the string matched in the ground truth (and benchmark) files, 
 while values correspond to the namespace field in the OBO file. 
 
-~~~json
+~~~python3
 namespaces = {
     "bpo": "biological_process", 
     "cco": "cellular_component", 

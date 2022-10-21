@@ -2,6 +2,7 @@ from graph import *
 import copy
 import logging
 
+import xml.etree.ElementTree as ET
 
 # parses a obo file and returns a list of ontologies, one for each different namespace
 def parse_obo(obo_file, rel=["is_a", "part_of"]):
@@ -267,6 +268,33 @@ def mistake_counter(a1, a2):
             indexes.append(i)
     return mis.sum(), indexes
 
+
+def parse_sprot(input_file, output_file):
+    """
+    Parse the Swiss-Prot XML annotation file
+    and write a TSV file with:
+    - accession
+    - GO term
+    - evidence code (ECO)
+    """
+    namespaces = {'uniprot': 'http://uniprot.org/uniprot'}
+    nsl = len(namespaces['uniprot']) + 2
+    acc = None
+    with open(input_file) as f:
+        with open(output_file, 'w') as fout:
+            for event, elem in ET.iterparse(f, events=('start', 'end')):
+                if event == 'end':
+                    if elem.tag[nsl:] == 'entry':
+                        acc = elem.find('uniprot:accession', namespaces).text
+                        for el in elem.iterfind('uniprot:dbReference', namespaces):
+                            if el.attrib['type'] == 'GO':
+                                for at in el.iter():
+                                    if at.attrib['type'] == 'evidence':
+                                        fout.write('{}\t{}\t{}\n'.format(acc, el.attrib['id'], at.attrib['value']))
+                        elem.clear()
+    return
+
+
 """# TEST
 [ont, _, _] = parse_obo("src/go_term.obo", True)
 print(1)
@@ -297,4 +325,4 @@ print(ids)
 print(ont.dag[ont.go_terms['GO:0009991']['index'],ont.go_terms['GO:0009605']['index']])
 print(pred.ids['T100900000045'])
 print("time:", end-start)
-#print(gt[:10,:10],prop_gt[:10,:10]) """                  
+#print(gt[:10,:10],prop_gt[:10,:10]) """
