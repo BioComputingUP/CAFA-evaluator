@@ -1,26 +1,61 @@
 import numpy as np
+import copy
+import logging
+from evaluation import get_toi_idx
 
 
 class Graph:
+    # TODO term GO:0000030 has parent in both BPO and MFO, think about how to fix it
     """
-    Class used to contain an ontology
+    Ontology class. One ontology == one namespace
     DAG is the adjacence matrix (sparse) which represent a Directed Acyclic Graph where
     DAG(i,j) = 1 means that the go term i is_a (or is part_of) j
     """
-    def __init__(self, dag, go_terms, ontology_type, go_list, ia_dict=None):
-        self.dag = dag  # [[], ...]  terms X terms matrix
-        self.go_terms = go_terms  # {term: {index: , name: , namespace: , def: }
-        self.ontology_type = ontology_type  # namespace
-        self.go_list = go_list  # [{id: term, name:, namespace: , def:, adg: [], children: []}, ...]
+    def __init__(self, namespace, go_dict, ia_dict=None):
+        """
+        go_dict = {term: {name: , namespace: , def: , alt_id: , rel:}}
+        """
+        self.namespace = namespace
+        self.dag = []  # [[], ...] terms (rows, axis 0) x parents (columns, axis 1)
+        self.go_terms = {}  # {term: {index: , name: , namespace: , def: }  used to assign term indexes in the gt
+        self.go_list = []  # [{id: term, name:, namespace: , def:, adg: [], children: []}, ...]
+        self.idxs = None  # Number of terms
+        self.order = None
+        self.toi = None
         self.ia_array = None
+
+        idxs = 0
+        rel_list = []
+        for go_id, term in go_dict.items():
+            rel_list.extend([[go_id, rel, term['namespace']] for rel in term['rel']])
+            self.go_list.append({'id': go_id, 'name': term['name'], 'namespace': namespace, 'def': term['def'],
+                                 'adj': [], 'children': []})
+            self.go_terms[go_id] = {'index': idxs, 'name': term['name'], 'namespace': namespace, 'def': term['def']}
+            for a_id in term['alt_id']:
+                self.go_terms[a_id] = copy.copy(self.go_terms[go_id])
+            idxs += 1
+
+        self.idxs = idxs
+        self.dag = np.zeros((idxs, idxs), dtype='bool')
+
+        # id1 term (row, axis 0), id2 direct parent (column, axis 1)
+        for id1, id2, ns in rel_list:
+            if self.go_terms.get(id2):
+                i = self.go_terms[id1]['index']
+                j = self.go_terms[id2]['index']
+                self.dag[i, j] = 1
+                self.go_list[i]['adj'].append(j)
+                self.go_list[j]['children'].append(i)
+            else:
+                logging.debug('Skipping branch to external namespace: {}'.format(id2))
+
+        self.order = top_sort(self)
+        self.toi = get_toi_idx(self.dag)
+
         if ia_dict is not None:
             self.set_ia_array(ia_dict)
 
-    def get_id(self, index):
-        return self.go_terms[index]['id']
-
-    def get_namespace(self):
-        return self.ontology_type
+        return
 
     def set_ia_array(self, ic_dict):
         n = len(self.go_list)
@@ -33,9 +68,9 @@ class Prediction:
     """
     The score matrix contains the scores given by the predictor for every node of the ontology
     """
-    def __init__(self, ids, scores, idx, namespace=None):
+    def __init__(self, ids, matrix, idx, namespace=None):
         self.ids = ids
-        self.matrix = scores
+        self.matrix = matrix  # scores
         self.next_idx = idx
         self.n_pred_seq = idx + 1
         self.namespace = namespace
@@ -45,9 +80,9 @@ class Prediction:
 
 
 class GroundTruth:
-    def __init__(self, p_ids, gt_matrix, terms=None):
-        self.ids = p_ids
-        self.matrix = gt_matrix
+    def __init__(self, ids, matrix, terms=None):
+        self.ids = ids
+        self.matrix = matrix
         self.terms = terms
 
 
@@ -90,14 +125,15 @@ def top_sort(ont):
 # with terms propagated upwards
 def propagate(gt, ont, order=None):
     if gt.matrix.shape[0] == 0:
-        return
+        raise Exception("Empty ground truth")
+
     if order is None:
         order = top_sort(ont)
     
     deepest = np.where(np.sum(gt.matrix[:, order], axis=0) > 0)[0][0]
     if deepest.size == 0:
         raise Exception("The matrix is empty")
-    order = np.delete(order, [range(0,deepest)])
+    order = np.delete(order, [range(0, deepest)])
 
     for i in order:
         C = np.where(ont.dag[:, i] != 0)[0]
@@ -105,25 +141,6 @@ def propagate(gt, ont, order=None):
             cols = np.concatenate((C, [i]))
             gt.matrix[:, i] = gt.matrix[:, cols].max(axis=1)
     return order
-
-
-    
-
-
-
-"""scores = np.array([[0.5,0,0], [0,0.5,0], [0,0,0.5]])
-dag = np.array([[0,0,0], [1,0,0], [0,1,0]])
-
-print("scores \n", scores)
-prop, order = propagate_pred(scores,dag)
-print(order)
-print("propagated scores \n", prop)
-print("propagated scores \n", prop[:,order])"""
-
-"""ont = np.array([[0,1,1], [0,0,0], [0,0,0]]) #problema girando le matrici
-print("order", top_sort(ont))
-print("propagated scores \n", propagate_pred(scores,ont))"""
-
 
 
 
