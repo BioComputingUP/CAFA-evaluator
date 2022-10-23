@@ -52,7 +52,6 @@ def gt_parser(gt_file, ontologies, ns_dict):
     Parse ground truth file
     Discard terms not included in the ontology
     """
-    c = 0
     gt_dict = {}
     with open(gt_file) as f:
         for line in f:
@@ -63,9 +62,7 @@ def gt_parser(gt_file, ontologies, ns_dict):
                     gt_dict.setdefault(ns_dict[go_id], {}).setdefault(p_id, []).append(go_id)
                 else:
                     logging.debug("Term {} not in current ontology".format(go_id))
-                c += 1
-                if c == 1000:
-                    break
+
     gts = {}
     for ont in ontologies:
         terms = sorted([(v['index'], k, v['name']) for k, v in ont.go_terms.items()])
