@@ -16,7 +16,7 @@ intrinsic disorder function predictions against [DisProt](https://disprot.org/) 
 - matplotlib
 - pandas
 
-## HowTo
+## Execution
 
 To run CAFA-evaluator simply call **main.py**.
 
@@ -38,13 +38,36 @@ Sub-folders are processed recursively and the sub-folder name is used as prefix 
 and for the labels in the plots. If not provided all methods are considered and labels are the file names 
 * *-ia* - Information accretion file
 
+## Input format
+**Prediction**
 
-### Names file format (tab separated)
+Tab separated file with the target ID, term ID and score columns.
 
-It must be a TAB separated file with header.
-This is used to consider the best method for each team and set labels in the output figures. 
-If this file is not provided, the program will use all predictions and 
-the labels will be the file names.
+~~~txt
+T98230000001    GO:0000159      0.39
+T98230000001    GO:0032991      0.39
+T98230000001    GO:1902494      0.39
+...
+~~~
+
+**Ground truth**
+
+Tab separated file with the target ID and term ID. 
+Additional columns are discarded.
+~~~
+T100900005305   GO:0033234
+T100900010085   GO:0006468
+T100900010085   GO:0046777
+...
+~~~
+
+**Names (optional)**
+
+Tab separated file with header.
+This is used to filter the best method for each team and 
+set labels in the output figures. 
+If not provided, the program will use all predictions and 
+the labels will be file names.
 
 ```
 name   group   label   is_baseline
@@ -54,11 +77,14 @@ team_8_pred_1.txt   team_8  team8_m1    False
 team_4_pred_1.txt   team_4  team4_m1    False
 ```
 
-### Information accretion file format
+**Information accretion (optional)**
+
+Tab separated file with header. 
+Only the *term* and *ia* columns are used.
+If not provided the corresponding plot files are not generated.
 
 Information accretion (IA) can be calculated as described in 
 [Wyatt and Radivojac, Bioinformatics, 2013](https://pubmed.ncbi.nlm.nih.gov/23813009/).
-It must be a TAB separated file with header. Only the *term* and *ia* columns are used.
 
 
 ```
@@ -97,34 +123,4 @@ Disorder_function       team_6  team_6_pred_1.txt       0.630   1.000   0.003   
 Disorder_function       team_6  team_6_pred_1.txt       0.620   1.000   0.003   0.006   0.003   0.000   0.000   0.000   0.003   team_6_pred_1.txt       team6_m1        False
 ```
 
-### Prediction file format
 
-Target_ID   Term_ID Score
-
-~~~txt
-T98230000001    GO:0000159      0.39
-T98230000001    GO:0032991      0.39
-T98230000001    GO:1902494      0.39
-...
-~~~
-
-### Ground truth file format
-
-A file containing the Target ID and Term ID as below.
-~~~
-T100900005305   GO:0033234
-T100900010085   GO:0006468
-T100900010085   GO:0046777
-...
-~~~
-
-
-### Benchmark file format
-
-Files, one for each ontology containing the list of protein IDs.
-~~~
-T446890002807
-T446890001819
-T446890003376
-...
-~~~
