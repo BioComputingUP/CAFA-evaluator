@@ -1,33 +1,29 @@
-from graph import top_sort, propagate
+from graph import Graph, propagate
 from parser import parse_obo, gt_parser, split_pred_parser, parse_ia_dict
-from evaluation import get_toi_idx, get_leafs_idx, get_roots_idx, compute_metrics, compute_f, compute_s, plot_pr_rc, plot_mi_ru
+from evaluation import get_leafs_idx, get_roots_idx, compute_metrics, compute_f, compute_s, plot_pr_rc, plot_mi_ru
 import argparse
 import logging
 import os
 import numpy as np
 import pandas as pd
 
-
-namespaces = {"bpo": "biological_process", "cco": "cellular_component", "mfo": "molecular_function",
- "disorderfunction": "Disorder_function", "interactionpartner": "Interaction_partner",
- "structuralstate": "Structural_state", "structuraltransition": "Structural_transition"}
+tau_arr = np.arange(0.01, 1, 0.01)  # Tau array, used to compute metrics at different score thresholds
 
 parser = argparse.ArgumentParser(description='CAFA-evaluator. Calculate precision-recall plots and F-max')
 parser.add_argument('obo_file', help='Ontology file in OBO format')
 parser.add_argument('pred_dir', help='Predictions directory. Sub-folders are iterated recursively')
-parser.add_argument('gt_dir', help='Ground truth directory. Sub-folders are iterated recursively')
+parser.add_argument('gt_file', help='Ground truth file')
 parser.add_argument('-out_dir', help='Output directory. Default to \"results\"', default='results')
 parser.add_argument('-names', help='File with methods information (filename, group, label, is_baseline)')
 parser.add_argument('-ia', help='File with information accretion (term, information_accretion)')
 args = parser.parse_args()
 
-tau_arr = np.arange(0.01, 1, 0.01)  # array of tau, used to compute precision and recall at different score threshold
 obo_file = args.obo_file
 pred_folder = os.path.normpath(args.pred_dir) + "/"  # add the tailing "/"
-gt_folder = os.path.normpath(args.gt_dir) + "/"
 out_folder = os.path.normpath(args.out_dir) + "/"
 ia_file = args.ia
 
+# Create output folder here in order to store the log file
 if not os.path.isdir(out_folder):
     os.mkdir(out_folder)
 
@@ -44,22 +40,15 @@ consoleHandler = logging.StreamHandler()
 consoleHandler.setFormatter(logFormatter)
 rootLogger.addHandler(consoleHandler)
 
-# parsing the ontology and for each namespace in the obo file creates a different graph structure
-ontologies = parse_obo(obo_file)
+# Parse the OBO file and creates a different graph for each namespace
+ontologies = []
+ns_dict = {}
+for ns, go_dict in parse_obo(obo_file).items():
+    ontologies.append(Graph(ns, go_dict))
+    for term in go_dict:
+        ns_dict[term] = go_dict[term]['namespace']
+    logging.info("{} {} roots, {} leaves".format(ns, len(get_roots_idx(ontologies[-1].dag)), len(get_leafs_idx(ontologies[-1].dag))))
 
-# Parse and set information accretion
-ia_dict = None
-if ia_file is not None:
-    ia_dict = parse_ia_dict(ia_file)
-    for ont in ontologies:
-        ont.set_ia_array(ia_dict)
-
-# Set gt files
-gt_files = []
-for root, dirs, files in os.walk(gt_folder):
-    for file in files:
-        gt_files.append(os.path.join(root, file))
-logging.debug("Gt files {}".format(gt_files))
 
 # Set prediction files
 pred_files = []
@@ -68,99 +57,58 @@ for root, dirs, files in os.walk(pred_folder):
         pred_files.append(os.path.join(root, file))
 logging.debug("Prediction paths {}".format(pred_files))
 
-# Set method information
+
+# Set method information (optional)
 methods = None
 if args.names:
     methods = pd.read_csv(args.names, delim_whitespace=True)
-    logging.debug(methods)
 logging.debug("Methods {}".format(methods))
 
-# for each namespace sort term, and identify roots, leaves and used terms
-order = {}
-toi = {}
-for ont in ontologies:
-    ns = ont.get_namespace()
-    roots = get_roots_idx(ont.dag)
-    leafs = get_leafs_idx(ont.dag)
-    order[ns] = top_sort(ont)
-    toi[ns] = get_toi_idx(ont.dag)
-    logging.info("{} {} roots, {} leaves".format(ns, len(roots), len(leafs)))
 
-# find the right ontology for each benchmark(filter) file
-gt_paths = {}
-predictions = {}
-ne = {}
-for k, v in namespaces.items():
-    for gt in gt_files:
-        gt_paths.setdefault(v)
-        if k.lower() in gt.lower():
-            gt_paths[v] = gt
-logging.debug("Gt paths {}".format(gt_paths))
-
-# if a ground truth for a specific namespace is missing the namespace is ignored
-unused_onts = []
-for i in range(0, len(ontologies)):
-    ns = ontologies[i].get_namespace()
-    if gt_paths.get(ns) is None:
-        unused_onts.append(i)
-unused_onts.reverse()
-for idx in unused_onts:
-    ontologies.pop(idx)
-
-if len(ontologies) == 0:
-    raise ValueError("Ground truth filenames not matching any OBO namespace")
-
-# parsing the ground truth for each remaining namespace
-gts = {}
-with open(out_folder + "/gt_stat.tsv", "wt") as out_file:
-    out_file.write("namespace\texpanded\tdirect\tterm\tname\n")
+# Parse and set information accretion
+ia_dict = None
+if ia_file is not None:
+    ia_dict = parse_ia_dict(ia_file)
     for ont in ontologies:
-        ns = ont.get_namespace()
-        if gt_paths.get(ns) is not None:
+        ont.set_ia_array(ia_dict)
 
-            gts[ns] = gt_parser(gt_paths[ns], ont.go_terms)
-
-            stat_pre = gts[ns].matrix.sum(axis=0)
-
-            _ = propagate(gts[ns], ont, order[ns])
-
-            ne[ns] = gts[ns].matrix.shape[0]
-
-            logging.info("Ground truth {} targets {} {} {}".format(ns, len(gts[ns].ids), ne[ns], gts[ns].matrix.any(axis=1).sum()))
-
-            stat_post = gts[ns].matrix.sum(axis=0)
-
-            for stat_post, stat_pre, c in sorted(zip(stat_post, stat_pre, gts[ns].terms), reverse=True):
-                out_file.write("{}\t{}\t{}\t{}\t{}\n".format(ns, stat_post - stat_pre, stat_pre, c[1], c[2]))
+# Parse ground truth file
+ne = {}  # {filename: {namespace: no_proteins}}
+gt = gt_parser(args.gt_file, ontologies, ns_dict)
+for ns in gt:
+    ont = [o for o in ontologies if o.namespace == ns][0]
+    # print(gt[ns].matrix.sum(axis=0))  # statistics
+    _ = propagate(gt[ns], ont, ont.order)  # propagate ancestors
+    # print(gt[ns].matrix.sum(axis=0))  # statistics after ancestors
+    ne[ns] = gt[ns].matrix.shape[0]  # number of proteins
+    logging.info('{} proteins: {}'.format(ns, gt[ns].matrix.shape[0]))
 
 
-# parses each prediction file, removing the proteins not contained in the ground truth
-# computes precision and recall sums that will be divided only at the end of the cycle
+# Parse prediction files. Proteins not in the ground truth are excluded as well as terms not in the ontology
+# Metrics are divided only at the end of the cycle
 pr_sum = {}
 rc_sum = {}
 mi_sum = {}
 ru_sum = {}
-
 data = {'ns': [], 'method': [], 'tau': [], 'pr': [], 'rc': [], 'f': [], 'cov_f': [], 'mi': [], 'ru': [], 's': [], 'cov_s': []}
+
 for file_name in pred_files:
     method = file_name.replace(pred_folder, '').replace('/', '_')
+    predictions = split_pred_parser(file_name, ontologies, gt, ns_dict)
 
     for ont in ontologies:
-        ns = ont.get_namespace()
+        ns = ont.namespace
         pr_sum[ns] = np.zeros((len(tau_arr), 2), dtype='float')
         rc_sum[ns] = np.zeros(len(tau_arr), dtype='float')
         ru_sum[ns] = np.zeros((len(tau_arr), 2), dtype='float')
         mi_sum[ns] = np.zeros((len(tau_arr), 2), dtype='float')
 
-    predictions = split_pred_parser(file_name, ontologies, gts)
     for p in predictions:
         ns = p.namespace
-        for o in ontologies:
-            if o.get_namespace() == ns:
-                ont = o
-        _ = propagate(p, ont, order[ns])
+        ont = [o for o in ontologies if o.namespace == ns][0]
+        _ = propagate(p, ont, ont.order)
 
-        pr, rc, ru, mi = compute_metrics(p, gts[ns], tau_arr, toi[ns], ont.ia_array)
+        pr, rc, ru, mi = compute_metrics(p, gt[ns], tau_arr, ont.toi, ont.ia_array)
         pr_sum[ns] += pr
         rc_sum[ns] += rc
 
@@ -169,10 +117,11 @@ for file_name in pred_files:
 
     # computing the actual value of precision and recall for each threshold
     for ont in ontologies:
-        ns = ont.get_namespace()
+        ns = ont.namespace
 
         data['ns'].extend([ns] * len(tau_arr))
         data['method'].extend([method] * len(tau_arr))
+
         data['tau'].extend(tau_arr)
 
         n = pr_sum[ns][:, 0]
@@ -199,16 +148,68 @@ for file_name in pred_files:
         data['s'].extend(compute_s(_ru, _mi))
         data['cov_s'].extend(d / ne[ns])
 
-# add names and groups
 data = pd.DataFrame(data)
-data = pd.merge(data, methods, left_on='method', right_on='name', how='left')
-data['group'].fillna(data['method'], inplace=True)
-data['label'].fillna(data['method'], inplace=True)
-data['is_baseline'].fillna(False, inplace=True)
-data.set_index(['ns', 'group', 'method'], inplace=True)
 
-plot_pr_rc(data, out_folder)
-plot_mi_ru(data, out_folder)
+# Add method labels and groups
+if methods is None:
+    group_col = 'method'
+    data.set_index(['ns', 'method'], inplace=True)
+else:
+    group_col = 'group'
+    data = pd.merge(data, methods, left_on='method', right_on='name', how='left')
+    data['group'].fillna(data['method'], inplace=True)
+    data['label'].fillna(data['method'], inplace=True)
+    data['is_baseline'].fillna(False, inplace=True)
+    data.set_index(['ns', 'group', 'method'], inplace=True)
 
+# Groups are defined here so that they have the same colors for different namespaces
+groups = data.index.get_level_values(group_col).unique()
 
+for ns, df_ns in data.groupby(level='ns'):
+
+    # Identify the best method for each group based on f max
+    best_methods = []
+    for group, df_g in df_ns.groupby(level=group_col):
+        best_methods.append(df_g['f'].idxmax())
+
+    # Sort the best methods based on f
+    if methods is None:
+        df_best_methods = df_ns.loc[best_methods].sort_values(by=['f'], ascending=[False])
+    else:
+        df_best_methods = df_ns.loc[best_methods].sort_values(by=['is_baseline', 'f'], ascending=[True, False])
+
+    # Re-sort thresholds
+    df_best_methods = df_best_methods.set_index('tau', append=True).groupby(
+        level='method', group_keys=False, sort=False).apply(lambda x: x.sort_index(level='tau', ascending=False))
+
+    # Save to file
+    df_best_methods.to_csv("{}/prrc_{}.tsv".format(out_folder, ns), sep='\t', float_format="%.3f")
+
+    # Plot
+    plot_pr_rc(df_best_methods, groups, "{}/prrc_{}.png".format(out_folder, ns))
+
+if ia_dict is not None:
+    for ns, df_ns in data.groupby(level='ns'):
+
+        # Identify the best method for each group based on f max
+        best_methods = []
+        for group, df_g in df_ns[df_ns['cov_s'] > 0].groupby(level='group'):
+            best_methods.append(df_g['s'].idxmin())
+
+        # Sort the best methods based on f
+        if methods is None:
+            df_best_methods = df_ns[df_ns['cov_s'] > 0].loc[best_methods].sort_values(by=['s'], ascending=[True])
+        else:
+            df_best_methods = df_ns[df_ns['cov_s'] > 0].loc[best_methods].sort_values(by=['is_baseline', 's'],
+                                                                                      ascending=[True, True])
+        # Re-sort thresholds
+        df_best_methods = df_best_methods.set_index('tau', append=True).groupby(level='method', group_keys=False,
+                                                                                sort=False).apply(
+            lambda x: x.sort_index(level='tau', ascending=False))
+
+        # Save to file
+        df_best_methods.to_csv("{}/miru_{}.tsv".format(out_folder, ns), sep='\t', float_format="%.3f")
+
+        # Plot
+        plot_mi_ru(df_best_methods, groups, "{}/miru_{}.png".format(out_folder, ns))
 
