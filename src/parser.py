@@ -4,46 +4,67 @@ import logging
 import xml.etree.ElementTree as ET
 
 
-# TODO replace the first part with a OBO parser library and ove the rest inside the Graph class
-# parses a obo file and returns a list of ontologies, one for each different namespace
-def parse_obo(obo_file, rel=["is_a", "part_of"]):
+def parse_obo(obo_file, valid_rel=("is_a", "part_of")):
+    """
+    Parse a OBO file and returns a list of ontologies, one for each namespace.
+    Obsolete terms are excluded as well as external namespaces
+    """
     go_dict = {}
-    temp_id = ''
-    temp_namespace = '' 
-    temp_name = ''
-    temp_def = ''
-    temp_alt_id = []
-    temp_rel = []
+    term_id = None
+    namespace = None
+    name = None
+    term_def = None
+    alt_id = []
+    rel = []
+    obsolete = True
     with open(obo_file) as f:
         for line in f:
             line = line.strip().split(": ")
             if line and len(line) > 1:
-                k, v = line[:2]
+                k = line[0]
+                v = ": ".join(line[1:])
                 if k == "id":
-                    # when a new id is found first we have to input the entry in the go term dict
-                    # also we will have to input a new entry when we reach EOF 
-                    if temp_id != '':
-                        go_dict.setdefault(temp_namespace, {})[temp_id] = {'name': temp_name, 'namespace': temp_namespace, 'def': temp_def, 'alt_id': temp_alt_id, 'rel': temp_rel}
-                    temp_alt_id = []
-                    temp_id = v
-                    temp_rel = []
+                    # Populate the dictionary with the previous entry
+                    if term_id is not None and obsolete is False and namespace is not None:
+                        go_dict.setdefault(namespace, {})[term_id] = {'name': name,
+                                                                       'namespace': namespace,
+                                                                       'def': term_def,
+                                                                       'alt_id': alt_id,
+                                                                       'rel': rel}
+                    # Assign current term ID
+                    term_id = v
+
+                    # Reset optional fields
+                    alt_id = []
+                    rel = []
+                    obsolete = False
+                    namespace = None
+
                 elif k == "alt_id":
-                    temp_alt_id.append(v)
+                    alt_id.append(v)
                 elif k == "name":
-                    temp_name = v
+                    name = v
                 elif k == "namespace" and v != 'external':
-                    temp_namespace = v
+                    namespace = v
                 elif k == "def":
-                    temp_def = v
-                elif k == "is_a" and k in rel:
+                    term_def = v
+                elif k == 'is_obsolete':
+                    obsolete = True
+                elif k == "is_a" and k in valid_rel:
                     s = v.split('!')[0].strip()
-                    temp_rel.append(s)
-                elif k == "relationship" and v.startswith("part_of") and "part_of" in rel:
+                    rel.append(s)
+                elif k == "relationship" and v.startswith("part_of") and "part_of" in valid_rel:
                     s = v.split()[1].strip()
-                    temp_rel.append(s)
+                    rel.append(s)
 
         # Last record
-        go_dict.setdefault(temp_namespace, {})[temp_id] = {'name': temp_name, 'namespace': temp_namespace, 'def': temp_def, 'alt_id': temp_alt_id, 'rel': temp_rel}
+        if obsolete is False and namespace is not None:
+            go_dict.setdefault(namespace, {})[term_id] = {'name': name,
+                                                          'namespace': namespace,
+                                                          'def': term_def,
+                                                          'alt_id': alt_id,
+                                                          'rel': rel}
+
     return go_dict
 
 
@@ -52,6 +73,7 @@ def gt_parser(gt_file, ontologies, ns_dict):
     Parse ground truth file
     Discard terms not included in the ontology
     """
+
     gt_dict = {}
     with open(gt_file) as f:
         for line in f:
@@ -65,14 +87,15 @@ def gt_parser(gt_file, ontologies, ns_dict):
 
     gts = {}
     for ont in ontologies:
-        terms = sorted([(v['index'], k, v['name']) for k, v in ont.go_terms.items()])
-        matrix = np.zeros((len(gt_dict[ont.namespace]), ont.idxs), dtype='bool')
-        ids = {}
-        for i, p_id in enumerate(gt_dict[ont.namespace]):
-            ids[p_id] = i
-            for go_id in gt_dict[ont.namespace][p_id]:
-                matrix[i, ont.go_terms[go_id]['index']] = 1
-        gts[ont.namespace] = GroundTruth(ids, matrix, terms=terms)
+        if gt_dict.get(ont.namespace):
+            terms = sorted([(v['index'], k, v['name']) for k, v in ont.go_terms.items()])
+            matrix = np.zeros((len(gt_dict[ont.namespace]), ont.idxs), dtype='bool')
+            ids = {}
+            for i, p_id in enumerate(gt_dict[ont.namespace]):
+                ids[p_id] = i
+                for go_id in gt_dict[ont.namespace][p_id]:
+                    matrix[i, ont.go_terms[go_id]['index']] = 1
+            gts[ont.namespace] = GroundTruth(ids, matrix, terms=terms)
 
     return gts
 
@@ -87,7 +110,7 @@ def split_pred_parser(pred_file, ontologies, gts, ns_dict):
             line = line.strip().split()
             if line and len(line) > 2:
                 p_id, go_id, prob = line[:3]
-                if go_id in ns_dict and p_id in gts[ns_dict[go_id]].ids:
+                if gts.get(ns_dict.get(go_id)) and p_id in gts[ns_dict[go_id]].ids:
                     pred_dict.setdefault(ns_dict[go_id], {}).setdefault(p_id, []).append((go_id, prob))
 
     predictions = []

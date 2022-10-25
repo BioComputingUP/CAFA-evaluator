@@ -5,11 +5,11 @@ from evaluation import get_toi_idx
 
 
 class Graph:
-    # TODO term GO:0000030 has parent in both BPO and MFO, think about how to fix it
     """
     Ontology class. One ontology == one namespace
     DAG is the adjacence matrix (sparse) which represent a Directed Acyclic Graph where
-    DAG(i,j) = 1 means that the go term i is_a (or is part_of) j
+    DAG(i,j) == 1 means that the go term i is_a (or is part_of) j
+    Parents that are in a different namespace are discarded
     """
     def __init__(self, namespace, go_dict, ia_dict=None):
         """
@@ -58,10 +58,12 @@ class Graph:
         return
 
     def set_ia_array(self, ic_dict):
-        n = len(self.go_list)
-        self.ia_array = np.zeros(n, dtype='float')
-        for i in range(0, n):
-            self.ia_array[i] = ic_dict.get(self.go_list[i]['id'], 0.0)
+        self.ia_array = np.zeros(len(self.go_terms), dtype='float')
+        for go_id in self.go_terms:
+            if ic_dict.get(go_id):
+                self.ia_array[self.go_terms[go_id]['index']] = ic_dict.get(go_id)
+            else:
+                logging.debug('Missing IA for term: {}'.format(go_id))
 
 
 class Prediction:

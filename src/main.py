@@ -13,9 +13,9 @@ parser = argparse.ArgumentParser(description='CAFA-evaluator. Calculate precisio
 parser.add_argument('obo_file', help='Ontology file in OBO format')
 parser.add_argument('pred_dir', help='Predictions directory. Sub-folders are iterated recursively')
 parser.add_argument('gt_file', help='Ground truth file')
-parser.add_argument('-out_dir', help='Output directory. Default to \"results\"', default='results')
-parser.add_argument('-names', help='File with methods information (filename, group, label, is_baseline)')
-parser.add_argument('-ia', help='File with information accretion (term, information_accretion)')
+parser.add_argument('-out_dir', help='Output directory. Default to \"results\" in the current directory', default='results')
+parser.add_argument('-names', help='File with methods information (header: filename, group, label, is_baseline)')
+parser.add_argument('-ia', help='File with information accretion (header: term, information_accretion)')
 args = parser.parse_args()
 
 obo_file = args.obo_file
@@ -84,58 +84,68 @@ for ns in gt:
     logging.info('{} proteins: {}'.format(ns, gt[ns].matrix.shape[0]))
 
 
-# Parse prediction files. Proteins not in the ground truth are excluded as well as terms not in the ontology
+# Parse prediction files.
+# Proteins not in the ground truth are excluded as well as terms not in the ontology
 # Metrics are divided only at the end of the cycle
 pr_sum = {}
 rc_sum = {}
+wpr_sum = {}
+wrc_sum = {}
 mi_sum = {}
 ru_sum = {}
-data = {'ns': [], 'method': [], 'tau': [], 'pr': [], 'rc': [], 'f': [], 'cov_f': [], 'mi': [], 'ru': [], 's': [], 'cov_s': []}
+data = {'ns': [], 'method': [], 'tau': [], 'pr': [], 'rc': [], 'f': [], 'cov_f': [], 'wpr': [], 'wrc': [], 'wf': [], 'cov_wf': [], 'mi': [], 'ru': [], 's': [], 'cov_s': []}
 
 for file_name in pred_files:
     method = file_name.replace(pred_folder, '').replace('/', '_')
     predictions = split_pred_parser(file_name, ontologies, gt, ns_dict)
 
-    for ont in ontologies:
-        ns = ont.namespace
+    for ns in gt:
         pr_sum[ns] = np.zeros((len(tau_arr), 2), dtype='float')
         rc_sum[ns] = np.zeros(len(tau_arr), dtype='float')
+
+        wpr_sum[ns] = np.zeros((len(tau_arr), 2), dtype='float')
+        wrc_sum[ns] = np.zeros(len(tau_arr), dtype='float')
+
         ru_sum[ns] = np.zeros((len(tau_arr), 2), dtype='float')
         mi_sum[ns] = np.zeros((len(tau_arr), 2), dtype='float')
 
     for p in predictions:
         ns = p.namespace
-        ont = [o for o in ontologies if o.namespace == ns][0]
-        _ = propagate(p, ont, ont.order)
+        if ns in gt:
+            ont = [o for o in ontologies if o.namespace == ns][0]
+            _ = propagate(p, ont, ont.order)
 
-        pr, rc, ru, mi = compute_metrics(p, gt[ns], tau_arr, ont.toi, ont.ia_array)
-        pr_sum[ns] += pr
-        rc_sum[ns] += rc
+            pr, rc, wpr, wrc, ru, mi = compute_metrics(p, gt[ns], tau_arr, ont.toi, ont.ia_array)
+            pr_sum[ns] += pr
+            rc_sum[ns] += rc
 
-        ru_sum[ns] += ru
-        mi_sum[ns] += mi
+            wpr_sum[ns] += wpr
+            wrc_sum[ns] += wrc
 
-    # computing the actual value of precision and recall for each threshold
-    for ont in ontologies:
-        ns = ont.namespace
+            ru_sum[ns] += ru
+            mi_sum[ns] += mi
+
+    # compute the actual value of precision and recall for each threshold
+    for ns in gt:
 
         data['ns'].extend([ns] * len(tau_arr))
         data['method'].extend([method] * len(tau_arr))
 
         data['tau'].extend(tau_arr)
 
+        # Precision recall
         n = pr_sum[ns][:, 0]
         d = pr_sum[ns][:, 1]
         _pr = np.divide(n, d, out=np.zeros_like(n, dtype='float'), where=d != 0)
+
         _rc = rc_sum[ns] / ne[ns]
+
         data['pr'].extend(_pr)
         data['rc'].extend(_rc)
         data['f'].extend(compute_f(_pr, _rc))
         data['cov_f'].extend(d / ne[ns])
 
-        # ru[ns] = ru_sum[ns] / ne[ns]
-        # mi[ns] = mi_sum[ns] / ne[ns]
-
+        # Mi, ru
         n = ru_sum[ns][:, 0]
         d = ru_sum[ns][:, 1]
         _ru = np.divide(n, d, out=np.zeros_like(n, dtype='float'), where=d != 0)
@@ -143,11 +153,26 @@ for file_name in pred_files:
         n = mi_sum[ns][:, 0]
         d = mi_sum[ns][:, 1]
         _mi = np.divide(n, d, out=np.zeros_like(n, dtype='float'), where=d != 0)
+
         data['ru'].extend(_ru)
         data['mi'].extend(_mi)
         data['s'].extend(compute_s(_ru, _mi))
         data['cov_s'].extend(d / ne[ns])
 
+        # Weighted precision recall
+        n = wpr_sum[ns][:, 0]
+        d = wpr_sum[ns][:, 1]
+        _wpr = np.divide(n, d, out=np.zeros_like(n, dtype='float'), where=d != 0)
+
+        _wrc = wrc_sum[ns] / ne[ns]
+
+        data['wpr'].extend(_wpr)
+        data['wrc'].extend(_wrc)
+        data['wf'].extend(compute_f(_wpr, _wrc))
+        data['cov_wf'].extend(d / ne[ns])
+
+
+# Create the dataframe
 data = pd.DataFrame(data)
 
 # Add method labels and groups

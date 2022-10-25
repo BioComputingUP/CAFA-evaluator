@@ -3,27 +3,27 @@ import matplotlib.pyplot as plt
 import logging
 
 
-# compute the indexes of the term of interests in the dag
+# Compute the indexes of the term of interests in the dag
 def get_toi_idx(dag):
     return np.where(dag.sum(axis=1) > 0)[0]
 
 
-# computes the root terms in the dag
+# Computes the root terms in the dag
 def get_roots_idx(dag):
     return np.where(dag.sum(axis=1) == 0)[0]
 
 
-# computes the leaf terms in the dag
+# Computes the leaf terms in the dag
 def get_leafs_idx(dag):
     return np.where(dag.sum(axis=0) == 0)[0]
 
 
-# takes the prediction and a tau value and return a 0 1 matrix containing all the scores >= tau
-def solidify_prediction(pred, tau): #, p, order, start_pos):
+# Return a mask for all the predictions (matrix) >= tau
+def solidify_prediction(pred, tau):
     return pred >= tau
 
 
-# takes the rows of the gt matrix that match the rows of the prediction matrix
+# Return the rows of the ground truth matrix that match the rows of the prediction matrix
 def build_gt(preds, gt, gt_ids):
     g = np.zeros((len(preds.ids), gt.shape[1]), dtype='bool')
     for p_id, idx in preds.ids.items():
@@ -36,74 +36,76 @@ def build_gt(preds, gt, gt_ids):
     return g
 
 
-# computes the sum part of the precision for a prediction
-def compute_precision_sum(pred, gt):
-    n = np.logical_and(pred, gt).sum(axis=1)
-    d = pred.sum(axis=1)
-    s = np.divide(n, d, out=np.zeros_like(n, dtype='float'), where=d != 0).sum()
-    return s
-
-
-# nt is the number of target, if we use full eval mode nt is the number of benchmark proteins
-# meanwhile if we use the partial evaluation mode nt is the number of proteins wich we gave in
-# input to the predictor
-def compute_recall_sum(pred, gt):
-    n = np.logical_and(pred, gt).sum(axis=1)
-    d = gt.sum(axis=1)
-    s = np.divide(n, d, out=np.zeros_like(n, dtype='float'), where=d != 0).sum()
-    return s
-
-
-# takes the prediction, the ground truth and returns the sum of the terms in order to compute precision and recall
-# in the case of precision a tuple precison_sum and m_tau is returned where m_tau is the number of rows with atleast 
-# one score >= tau
-def compute_metrics(pred, gt, tau_arr, toi, ic_arr=None):
-    pr_list = np.zeros((len(tau_arr), 2), dtype='float')
-    rc_list = np.zeros(len(tau_arr), dtype='float')
-
-    ru_list = np.zeros((len(tau_arr), 2))
-    mi_list = np.zeros((len(tau_arr), 2))
-
-    i = 0
-    for tau in tau_arr:
-        p = solidify_prediction(pred.matrix[:, toi], tau)
-        g = build_gt(pred, gt.matrix, gt.ids)[:, toi]
-        m_tau = ((p.sum(axis=1)) >= 1).sum()
-
-        pr = compute_precision_sum(p, g)
-        rc = compute_recall_sum(p, g)
-        pr_list[i, :] = [pr, m_tau]
-        rc_list[i] = rc
-
-        if ic_arr is not None:
-            ru = compute_remaining_uncertainty(p, g, ic_arr[toi])
-            mi = compute_misinformation(p, g, ic_arr[toi])
-            ru_list[i, :] = [ru, m_tau]
-            mi_list[i, :] = [mi, m_tau]
-
-        i += 1
-    return pr_list, rc_list, ru_list, mi_list
-
-
-# computes the f metric for each precision and recall in the input arraysg
+# computes the f metric for each precision and recall in the input arrays
 def compute_f(pr, rc):
     n = 2 * pr * rc
     d = pr + rc
     return np.divide(n, d, out=np.zeros_like(n, dtype=float), where=d != 0)
 
 
-def compute_remaining_uncertainty(pred, gt, ic_arr):
-    # n = np.logical_and(np.logical_not(pred), gt)
-    return (np.logical_and(np.logical_not(pred), gt) * ic_arr).sum(axis=1).sum()
-
-
-def compute_misinformation(pred, gt, ic_arr):
-    return (np.logical_and(pred, np.logical_not(gt)) * ic_arr).sum(axis=1).sum()
-
-
 def compute_s(ru, mi):
     return np.sqrt(ru**2 + mi**2)
     # return np.where(np.isnan(ru), mi, np.sqrt(ru + np.nan_to_num(mi)))
+
+
+def compute_metrics(pred, gt, tau_arr, toi, ic_arr=None):
+    """
+    takes the prediction, the ground truth and returns the sum of the terms in order to compute precision and recall
+    In the case of precision a tuple (precison_sum, m_tau),
+    m_tau is the number of rows with at least one score >= tau
+    """
+    pr_list = np.zeros((len(tau_arr), 2), dtype='float')
+    rc_list = np.zeros(len(tau_arr), dtype='float')
+
+    ru_list = np.zeros((len(tau_arr), 2))
+    mi_list = np.zeros((len(tau_arr), 2))
+
+    wpr_list = np.zeros((len(tau_arr), 2), dtype='float')
+    wrc_list = np.zeros(len(tau_arr), dtype='float')
+
+    for i, tau in enumerate(tau_arr):
+        p = solidify_prediction(pred.matrix[:, toi], tau)
+        g = build_gt(pred, gt.matrix, gt.ids)[:, toi]
+        m_tau = ((p.sum(axis=1)) >= 1).sum()
+
+        # Terms subsets
+        intersection = np.logical_and(p, g)
+        remaining = np.logical_and(np.logical_not(p), g)
+        mis = np.logical_and(p, np.logical_not(g))
+
+        # Subsets size
+        n_gt = g.sum(axis=1)
+        n_pred = p.sum(axis=1)
+        n_intersection = intersection.sum(axis=1)
+
+        # Precision, recall
+        pr = np.divide(n_intersection, n_pred, out=np.zeros_like(n_intersection, dtype='float'), where=n_pred != 0).sum()
+        rc = np.divide(n_intersection, n_gt, out=np.zeros_like(n_intersection, dtype='float'), where=n_gt != 0).sum()
+
+        pr_list[i, :] = [pr, m_tau]
+        rc_list[i] = rc
+
+        if ic_arr is not None:
+
+            # Weighted precision, recall
+            wn_gt = (g * ic_arr).sum(axis=1)
+            wn_pred = (p * ic_arr).sum(axis=1)
+            wn_intersection = (intersection * ic_arr).sum(axis=1)
+
+            wpr = np.divide(wn_intersection, wn_pred, out=np.zeros_like(wn_intersection, dtype='float'), where=wn_pred != 0).sum()
+            wrc = np.divide(wn_intersection, wn_gt, out=np.zeros_like(wn_intersection, dtype='float'), where=wn_gt != 0).sum()
+
+            wpr_list[i, :] = [wpr, m_tau]
+            wrc_list[i] = wrc
+
+            # Misinformation, remaining uncertainty
+            ru = (remaining * ic_arr).sum(axis=1).sum()
+            mi = (mis * ic_arr).sum(axis=1).sum()
+
+            ru_list[i, :] = [ru, m_tau]
+            mi_list[i, :] = [mi, m_tau]
+
+    return pr_list, rc_list, wpr_list, wrc_list, ru_list, mi_list
 
 
 # TODO manage baselines colors
@@ -117,12 +119,12 @@ def plot_pr_rc(df, groups, out_file):
         best = df_m.loc[df_m['f'].idxmax()]
         color = cmap.colors[groups.get_loc(best.name[1]) % len(cmap.colors)]
         # TODO baseline color is hardcoded
-        if 'blast' in best['label'].lower():
+        if 'blast' in best.get('label', '').lower():
             color = (0, 0, 1)  # blue
-        elif 'naive' in best['label'].lower():
+        elif 'naive' in best.get('label', '').lower():
             color = (1, 0, 0)  # red
-        ax.plot(df_m['rc'], df_m['pr'], '--' if best['is_baseline'] else '-',
-                label="{} (F={:.2f},C={:.2f})".format(best['label'], best['f'], best['cov_f']), color=color)
+        ax.plot(df_m['rc'], df_m['pr'], '--' if best.get('is_baseline') else '-',
+                label="{} (F={:.2f},C={:.2f})".format(best.get('label', method), best['f'], best['cov_f']), color=color)
         plt.plot(best['rc'], best['pr'], 'o', color=color)
 
     ax.legend()
@@ -147,12 +149,12 @@ def plot_mi_ru(df, groups, out_file):
         best = df_m.loc[df_m['s'].idxmin()]
         color = cmap.colors[groups.get_loc(best.name[1]) % len(cmap.colors)]
         # TODO baseline color is hardcoded
-        if 'blast' in best['label'].lower():
+        if 'blast' in best.get('label', '').lower():
             color = (0, 0, 1)  # blue
-        elif 'naive' in best['label'].lower():
+        elif 'naive' in best.get('label', '').lower():
             color = (1, 0, 0)  # red
-        ax.plot(df_m['ru'], df_m['mi'], '--' if best['is_baseline'] else '-',
-                label="{} (S={:.2f},C={:.2f})".format(best['label'], best['s'], best['cov_s']), color=color)
+        ax.plot(df_m['ru'], df_m['mi'], '--' if best.get('is_baseline') else '-',
+                label="{} (S={:.2f},C={:.2f})".format(best.get('label', method), best['s'], best['cov_s']), color=color)
         plt.plot(best['ru'], best['mi'], 'o', color=color)
 
     ax.legend()
