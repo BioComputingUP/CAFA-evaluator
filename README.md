@@ -110,48 +110,40 @@ team_4_pred_1.txt   team_4  team4_m1    False
 
 **Information accretion (optional)**
 
-Tab separated file with header. 
-Only the *term* and *ia* columns are used.
 If not provided the corresponding plot files are not generated.
-
 Information accretion (IA) can be calculated as described in 
 [Wyatt and Radivojac, Bioinformatics, 2013](https://pubmed.ncbi.nlm.nih.gov/23813009/).
 
 
 ```
-term    co_occuring     co_occuring_parents     p_cond  ia
-DO:00000        484     484     1.0     -0.0
-DO:00001        141     484     0.29132231404958675     1.7793118848758012
-DO:00002        106     141     0.75177304964539        0.4116308978355944
-DO:00003        5       141     0.03546099290780142     4.817623257511431
-DO:00005        2       141     0.014184397163120567    6.139551352398794
-DO:00007        2       141     0.014184397163120567    6.139551352398794
-DO:00008        154     484     0.3181818181818182      1.6520766965796931
+GO:0000003 3.27
+GO:0000035 12.00
+GO:0000149 6.82
+GO:0000322 4.83
+GO:0000323 3.11
+GO:0000325 5.70
+GO:0000407 8.15
+GO:0000408 9.67
+
 ```
 
 
 ### Output
 
-* prrc_<name_space>.png - Precision-recall plots, one for each ontology
-* prrc_<name_space>.tsv - Precision-recall points, one for each ontology
-* miru_<name_space>.png - Remaining uncertainty–misinformation plots, one for each ontology
-* miru_<name_space>.tsv - Remaining uncertainty–misinformation points, one for each ontology
+* < metric >_< name_space >.png - 3 files for each namespace. The metric can be: 
+  * *prrc*, Precision / recall curves
+  * *wprrc*, Weighted precision / recall curves. This file is generated only when IA is provided.
+  * *miru*, Misinformation / remaining uncertainty curves. This file is generated only when IA is provided.
+* < metric >_< name_space >.tsv - The corresponding curve points
 * info.log - Log file. Information is appended
 
-prrc_<name_space>.tsv
+An example output file, *wprrc_molecular_function.tsv*:
 ```
-ns      group   method  tau     pr      rc      f       cov_f   mi      ru      s       cov_s   name    label   is_baseline
-Disorder_function       team_7  team_7_pred_1.txt       0.990   0.556   0.018   0.035   0.018   0.101   51.885  51.885  0.018   team_7_pred_1.txt       team7_m1        False
-Disorder_function       team_7  team_7_pred_1.txt       0.980   0.556   0.018   0.035   0.018   0.101   51.885  51.885  0.018   team_7_pred_1.txt       team7_m1        False
-Disorder_function       team_7  team_7_pred_1.txt       0.970   0.556   0.018   0.035   0.018   0.101   51.885  51.885  0.018   team_7_pred_1.txt       team7_m1        False
+ns	group	label	tau	wpr	wrc	wf	cov
+molecular_function	inga.txt	inga.txt	0.600	0.619	0.457	0.526	0.800
+molecular_function	inga.txt	inga.txt	0.590	0.619	0.457	0.526	0.800
+molecular_function	inga.txt	inga.txt	0.580	0.619	0.457	0.526	0.800
+molecular_function	inga.txt	inga.txt	0.570	0.598	0.476	0.530	0.805
+molecular_function	inga.txt	inga.txt	0.560	0.579	0.493	0.533	0.808
+molecular_function	inga.txt	inga.txt	0.550	0.571	0.504	0.535	0.813
 ```
-
-miru_<name_space>.tsv
-```
-ns      group   method  tau     pr      rc      f       cov_f   mi      ru      s       cov_s   name    label   is_baseline
-Disorder_function       team_6  team_6_pred_1.txt       0.640   1.000   0.003   0.006   0.003   0.000   0.000   0.000   0.003   team_6_pred_1.txt       team6_m1        False
-Disorder_function       team_6  team_6_pred_1.txt       0.630   1.000   0.003   0.006   0.003   0.000   0.000   0.000   0.003   team_6_pred_1.txt       team6_m1        False
-Disorder_function       team_6  team_6_pred_1.txt       0.620   1.000   0.003   0.006   0.003   0.000   0.000   0.000   0.003   team_6_pred_1.txt       team6_m1        False
-```
-
-
