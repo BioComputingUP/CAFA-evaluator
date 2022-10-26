@@ -1,11 +1,11 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import logging
+import pandas as pd
 
+from graph import propagate
 
-# Compute the indexes of the term of interests in the dag
-def get_toi_idx(dag):
-    return np.where(dag.sum(axis=1) > 0)[0]
+# Tau array, used to compute metrics at different score thresholds
+tau_arr = np.arange(0.01, 1, 0.01)
 
 
 # Computes the root terms in the dag
@@ -69,9 +69,9 @@ def compute_metrics(pred, gt, tau_arr, toi, ic_arr=None):
         m_tau = ((p.sum(axis=1)) >= 1).sum()
 
         # Terms subsets
-        intersection = np.logical_and(p, g)
-        remaining = np.logical_and(np.logical_not(p), g)
-        mis = np.logical_and(p, np.logical_not(g))
+        intersection = np.logical_and(p, g)  # TP
+        remaining = np.logical_and(np.logical_not(p), g)  # FN --> not predicted but in the ground truth
+        mis = np.logical_and(p, np.logical_not(g))  # FP --> predicted but not in the ground truth
 
         # Subsets size
         n_gt = g.sum(axis=1)
@@ -108,59 +108,51 @@ def compute_metrics(pred, gt, tau_arr, toi, ic_arr=None):
     return pr_list, rc_list, wpr_list, wrc_list, ru_list, mi_list
 
 
-# TODO manage baselines colors
-def plot_pr_rc(df, groups, out_file):
-    """
-    Plot precision recall curves
-    """
-    cmap = plt.get_cmap('tab10')
-    fig, ax = plt.subplots(figsize=(10, 10))
-    for method, df_m in df.groupby(level='method', sort=False):
-        best = df_m.loc[df_m['f'].idxmax()]
-        color = cmap.colors[groups.get_loc(best.name[1]) % len(cmap.colors)]
-        # TODO baseline color is hardcoded
-        if 'blast' in best.get('label', '').lower():
-            color = (0, 0, 1)  # blue
-        elif 'naive' in best.get('label', '').lower():
-            color = (1, 0, 0)  # red
-        ax.plot(df_m['rc'], df_m['pr'], '--' if best.get('is_baseline') else '-',
-                label="{} (F={:.2f},C={:.2f})".format(best.get('label', method), best['f'], best['cov_f']), color=color)
-        plt.plot(best['rc'], best['pr'], 'o', color=color)
+def evaluate_prediction(prediction, gt, ontologies, ne):
 
-    ax.legend()
-    # ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', prop={'size': 15})
-    # ax.legend(bbox_to_anchor=(0, 1), loc='lower left', prop={'size': 15}, ncol=int(math.sqrt(len(labels)))-1)
-    ax.set_ylabel("Precision") #, fontsize=18)
-    ax.set_xlabel("Recall") #, fontsize=18)
-    plt.xlim([0, 1])
-    plt.ylim([0, 1])
-    plt.savefig(out_file, bbox_inches='tight')
-    plt.close('all')
+    dfs = []
+    for p in prediction:
+        ns = p.namespace
+        if ns in gt:
+            ont = [o for o in ontologies if o.namespace == ns][0]
 
+            _ = propagate(p, ont, ont.order)
 
-def plot_mi_ru(df, groups, out_file):
-    """
-    Plot misinformation remaining uncertainty curves
-    """
-    cmap = plt.get_cmap('tab10')
-    fig, ax = plt.subplots(figsize=(10, 10))
-    # plot the curves
-    for method, df_m in df.groupby(level='method', sort=False):
-        best = df_m.loc[df_m['s'].idxmin()]
-        color = cmap.colors[groups.get_loc(best.name[1]) % len(cmap.colors)]
-        # TODO baseline color is hardcoded
-        if 'blast' in best.get('label', '').lower():
-            color = (0, 0, 1)  # blue
-        elif 'naive' in best.get('label', '').lower():
-            color = (1, 0, 0)  # red
-        ax.plot(df_m['ru'], df_m['mi'], '--' if best.get('is_baseline') else '-',
-                label="{} (S={:.2f},C={:.2f})".format(best.get('label', method), best['s'], best['cov_s']), color=color)
-        plt.plot(best['ru'], best['mi'], 'o', color=color)
+            pr_sum, rc_sum, wpr_sum, wrc_sum, ru_sum, mi_sum = compute_metrics(p, gt[ns], tau_arr, ont.toi, ont.ia)
 
-    ax.legend()
-    ax.set_ylabel("Misinformation")  # , fontsize=18)
-    ax.set_xlabel("Remaining uncertainty")  # , fontsize=18)
-    plt.xlim([0, 5])
-    plt.ylim(bottom=0)
-    plt.savefig(out_file, bbox_inches='tight')
-    plt.close('all')
+            # Precision recall
+            n = pr_sum[:, 0]
+            d = pr_sum[:, 1]
+            _pr = np.divide(n, d, out=np.zeros_like(n, dtype='float'), where=d != 0)
+            _rc = rc_sum / ne[ns]
+            cov = d / ne[ns]
+
+            # Mi, ru
+            n = ru_sum[:, 0]
+            d = ru_sum[:, 1]
+            _ru = np.divide(n, d, out=np.zeros_like(n, dtype='float'), where=d != 0)
+
+            n = mi_sum[:, 0]
+            d = mi_sum[:, 1]
+            _mi = np.divide(n, d, out=np.zeros_like(n, dtype='float'), where=d != 0)
+
+            # Weighted precision recall
+            n = wpr_sum[:, 0]
+            d = wpr_sum[:, 1]
+            _wpr = np.divide(n, d, out=np.zeros_like(n, dtype='float'), where=d != 0)
+            _wrc = wrc_sum / ne[ns]
+
+            dfs.append(pd.DataFrame({'ns': [ns] * len(tau_arr),
+                                     'tau': tau_arr,
+                                     'cov': cov,
+                                     'pr': _pr,
+                                     'rc': _rc,
+                                     'f': compute_f(_pr, _rc),
+                                     'wpr': _wpr,
+                                     'wrc': _wrc,
+                                     'wf': compute_f(_wpr, _wrc),
+                                     'mi': _mi,
+                                     'ru': _ru,
+                                     's':  compute_s(_ru, _mi)}))
+
+    return pd.concat(dfs)

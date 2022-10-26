@@ -1,7 +1,6 @@
 import numpy as np
 import copy
 import logging
-from evaluation import get_toi_idx
 
 
 class Graph:
@@ -22,21 +21,19 @@ class Graph:
         self.idxs = None  # Number of terms
         self.order = None
         self.toi = None
-        self.ia_array = None
+        self.ia = None
 
-        idxs = 0
         rel_list = []
-        for go_id, term in go_dict.items():
+        for self.idxs, (go_id, term) in enumerate(go_dict.items()):
             rel_list.extend([[go_id, rel, term['namespace']] for rel in term['rel']])
             self.go_list.append({'id': go_id, 'name': term['name'], 'namespace': namespace, 'def': term['def'],
                                  'adj': [], 'children': []})
-            self.go_terms[go_id] = {'index': idxs, 'name': term['name'], 'namespace': namespace, 'def': term['def']}
+            self.go_terms[go_id] = {'index': self.idxs, 'name': term['name'], 'namespace': namespace, 'def': term['def']}
             for a_id in term['alt_id']:
                 self.go_terms[a_id] = copy.copy(self.go_terms[go_id])
-            idxs += 1
+        self.idxs += 1
 
-        self.idxs = idxs
-        self.dag = np.zeros((idxs, idxs), dtype='bool')
+        self.dag = np.zeros((self.idxs, self.idxs), dtype='bool')
 
         # id1 term (row, axis 0), id2 direct parent (column, axis 1)
         for id1, id2, ns in rel_list:
@@ -50,20 +47,22 @@ class Graph:
                 logging.debug('Skipping branch to external namespace: {}'.format(id2))
 
         self.order = top_sort(self)
-        self.toi = get_toi_idx(self.dag)
+        self.toi = np.where(self.dag.sum(axis=1) > 0)[0]
 
         if ia_dict is not None:
-            self.set_ia_array(ia_dict)
+            self.set_ia(ia_dict)
 
         return
 
-    def set_ia_array(self, ic_dict):
-        self.ia_array = np.zeros(len(self.go_terms), dtype='float')
+    def set_ia(self, ia_dict):
+        self.ia = np.zeros(self.idxs - 1, dtype='float')  # TODO why -1 ???
         for go_id in self.go_terms:
-            if ic_dict.get(go_id):
-                self.ia_array[self.go_terms[go_id]['index']] = ic_dict.get(go_id)
+            if ia_dict.get(go_id):
+                self.ia[self.go_terms[go_id]['index']] = ia_dict.get(go_id)
             else:
                 logging.debug('Missing IA for term: {}'.format(go_id))
+        # Convert inf to zero
+        np.nan_to_num(self.ia, copy=False, nan=0, posinf=0, neginf=0)
 
 
 class Prediction:
@@ -88,8 +87,11 @@ class GroundTruth:
         self.terms = terms
 
 
-# takes a sparse matrix representing a DAG and returns an array containing the node indexes in topological order
 def top_sort(ont):
+    """
+    Takes a sparse matrix representing a DAG and returns an array with the node indexes in topological order
+    https://en.wikipedia.org/wiki/Topological_sorting
+    """
     indexes = []
     visited = 0
     (rows, cols) = ont.dag.shape
@@ -122,26 +124,26 @@ def top_sort(ont):
         raise Exception("The sparse matrix doesn't represent an acyclic graph")
 
 
-# takes the score matrix (proteins on rows and terms on columns) and
-# a sparse matrix representing the DAG and returns a new score matrix
-# with terms propagated upwards
-def propagate(gt, ont, order=None):
+def propagate(gt, ont, order):
+    """
+    Takes the score matrix (proteins x terms) and
+    a sparse matrix representing the DAG and returns a new score matrix
+    with terms propagated upwards
+    """
     if gt.matrix.shape[0] == 0:
         raise Exception("Empty ground truth")
 
-    if order is None:
-        order = top_sort(ont)
-    
     deepest = np.where(np.sum(gt.matrix[:, order], axis=0) > 0)[0][0]
     if deepest.size == 0:
         raise Exception("The matrix is empty")
     order = np.delete(order, [range(0, deepest)])
 
     for i in order:
-        C = np.where(ont.dag[:, i] != 0)[0]
-        if C.size > 0:
-            cols = np.concatenate((C, [i]))
+        current = np.where(ont.dag[:, i] != 0)[0]
+        if current.size > 0:
+            cols = np.concatenate((current, [i]))
             gt.matrix[:, i] = gt.matrix[:, cols].max(axis=1)
+
     return order
 
 

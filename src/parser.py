@@ -4,7 +4,7 @@ import logging
 import xml.etree.ElementTree as ET
 
 
-def parse_obo(obo_file, valid_rel=("is_a", "part_of")):
+def obo_parser(obo_file, valid_rel=("is_a", "part_of")):
     """
     Parse a OBO file and returns a list of ontologies, one for each namespace.
     Obsolete terms are excluded as well as external namespaces
@@ -96,14 +96,15 @@ def gt_parser(gt_file, ontologies, ns_dict):
                 for go_id in gt_dict[ont.namespace][p_id]:
                     matrix[i, ont.go_terms[go_id]['index']] = 1
             gts[ont.namespace] = GroundTruth(ids, matrix, terms=terms)
+            logging.info('Ground truth: {}, proteins {}'.format(ont.namespace, i))
 
     return gts
 
 
-# TODO improve reporting of missing targets, etc.
-# Parses a prediction file and returns a Prediction object for each ontology in ontologies
-def split_pred_parser(pred_file, ontologies, gts, ns_dict):
-
+def pred_parser(pred_file, ontologies, gts, ns_dict):
+    """
+    Parse a prediction file and returns a list of prediction objects, one for each namespace
+    """
     pred_dict = {}
     with open(pred_file) as f:
         for line in f:
@@ -125,11 +126,12 @@ def split_pred_parser(pred_file, ontologies, gts, ns_dict):
                     j = ont.go_terms.get(go_id)['index']
                     matrix[i, j] = prob
             predictions.append(Prediction(ids, matrix, len(pred_dict[ns]), ns))
+            logging.info("Prediction: {}, {}, proteins {}".format(pred_file, ns, len(pred_dict[ns])))
 
     return predictions
 
 
-def parse_ia_dict(file):
+def ia_parser(file):
     ia_dict = {}
     with open(file) as f:
         for line in f:

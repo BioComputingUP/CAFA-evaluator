@@ -2,17 +2,48 @@
 
 Calculate F-score and S-score as well as precision-recall and remaining uncertainty–misinformation curves  
 as provided in the 
-[Critical Assessment of protein Function Annotation (CAFA)](https://www.biofunctionprediction.org/cafa/)
+[Critical Assessment of protein Function Annotation (CAFA)](https://www.biofunctionprediction.org/cafa/).
+CAFA-evaluator is generic and works with any type of ontology.
 
-CAFA-evaluator is generic and works with any ontology. For example, it can be used to evaluate 
-intrinsic disorder function predictions against [DisProt](https://disprot.org/) annotations.
 
+
+### Algorithm information 
+
+Important information about the algorithm.
+
+- Prediction files are filtered considering only targets and ontology terms which are included 
+in the ground truth and ontology files.
+
+- Only aspects which are included in the ground truth file are considered. For example, if the ground truth contains 
+only molecular function annotations, the output will only cover molecular function analyses, 
+even if predictions for other aspects are provided.
+
+- Both the predictions and the ground truth annotations are always propagated up to the ontology root(s).
+
+- The algorithm stores in memory a Numpy boolean *N x M* array (N = number of ground truth targets; M = ontology terms of a single aspect)
+for each aspect in the ground truth file.
+
+- An array of the same size (rows &le; N), but containing floats (the prediction scores) instead of booleans, 
+is stored for each prediction file. 
+Prediction files are processed one by one and the matrix gets reassigned.
+
+- The ontology is processed with an internal parser.
+  - Only the OBO format is allowed.
+  - Obsolete terms are always excluded.
+  - Cross-aspect or cross-ontology relationships are always discarded.
+  - Only "is_a" and "part_of" relationships are considered.
+  - Alternative term IDs are automatically mapped to the main ID.
+
+- Information accretion, when provided, is automatically set to zero for "nan" and "inf" values.
+
+In order to replicate CAFA results, you can simply adapt the input files. 
+- By filtering/splitting the input **ground truth file** you can replicate the "no knowledge" and "partial knowledge" benchmarks. 
+- In order to exclude specific terms from the analyses, e.g. generic "binding" terms, you can directly modify the input **ontology file**. 
 
 
 ## Required packages
 
 - numpy
-- logging
 - matplotlib
 - pandas
 
