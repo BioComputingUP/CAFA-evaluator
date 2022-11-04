@@ -90,6 +90,7 @@ def gt_parser(gt_file, ontologies, ns_dict):
         if gt_dict.get(ont.namespace):
             terms = sorted([(v['index'], k, v['name']) for k, v in ont.go_terms.items()])
             matrix = np.zeros((len(gt_dict[ont.namespace]), ont.idxs), dtype='bool')
+
             ids = {}
             for i, p_id in enumerate(gt_dict[ont.namespace]):
                 ids[p_id] = i

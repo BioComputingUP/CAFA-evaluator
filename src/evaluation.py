@@ -88,9 +88,9 @@ def compute_metrics(pred, gt, tau_arr, toi, ic_arr=None):
         if ic_arr is not None:
 
             # Weighted precision, recall
-            wn_gt = (g * ic_arr).sum(axis=1)
-            wn_pred = (p * ic_arr).sum(axis=1)
-            wn_intersection = (intersection * ic_arr).sum(axis=1)
+            wn_gt = (g * ic_arr[toi]).sum(axis=1)
+            wn_pred = (p * ic_arr[toi]).sum(axis=1)
+            wn_intersection = (intersection * ic_arr[toi]).sum(axis=1)
 
             wpr = np.divide(wn_intersection, wn_pred, out=np.zeros_like(wn_intersection, dtype='float'), where=wn_pred != 0).sum()
             wrc = np.divide(wn_intersection, wn_gt, out=np.zeros_like(wn_intersection, dtype='float'), where=wn_gt != 0).sum()
@@ -99,8 +99,8 @@ def compute_metrics(pred, gt, tau_arr, toi, ic_arr=None):
             wrc_list[i] = wrc
 
             # Misinformation, remaining uncertainty
-            ru = (remaining * ic_arr).sum(axis=1).sum()
-            mi = (mis * ic_arr).sum(axis=1).sum()
+            ru = (remaining * ic_arr[toi]).sum(axis=1).sum()
+            mi = (mis * ic_arr[toi]).sum(axis=1).sum()
 
             ru_list[i, :] = [ru, m_tau]
             mi_list[i, :] = [mi, m_tau]

@@ -55,7 +55,7 @@ class Graph:
         return
 
     def set_ia(self, ia_dict):
-        self.ia = np.zeros(self.idxs - 1, dtype='float')  # TODO why -1 ???
+        self.ia = np.zeros(self.idxs, dtype='float')
         for go_id in self.go_terms:
             if ia_dict.get(go_id):
                 self.ia[self.go_terms[go_id]['index']] = ia_dict.get(go_id)
