@@ -2,11 +2,15 @@ import argparse
 import logging
 import os
 import pandas as pd
+import numpy as np
 
 from graph import Graph, propagate
 from parser import obo_parser, gt_parser, pred_parser, ia_parser
 from evaluation import get_leafs_idx, get_roots_idx, evaluate_prediction
 from plot import get_best_methods, plot_curves
+
+# Tau array, used to compute metrics at different score thresholds
+tau_arr = np.arange(0.01, 1, 0.01)
 
 
 if __name__ == '__main__':
@@ -15,9 +19,15 @@ if __name__ == '__main__':
     parser.add_argument('obo_file', help='Ontology file in OBO format')
     parser.add_argument('pred_dir', help='Predictions directory. Sub-folders are iterated recursively')
     parser.add_argument('gt_file', help='Ground truth file')
-    parser.add_argument('-out_dir', help='Output directory. Default to \"results\" in the current directory', default='results')
-    parser.add_argument('-names', help='File with methods information (header: filename, group, label, is_baseline)')
+    parser.add_argument('-out_dir', default='results',
+                        help='Output directory. Default to \"results\" in the current directory')
     parser.add_argument('-ia', help='File with information accretion (header: term, information_accretion)')
+    parser.add_argument('-orphans', action='store_true', default=False,
+                        help='Consider terms without parents, e.g. the root(s)')
+    parser.add_argument('-norm', choices=['cafa', 'pred', 'gt'], default='cafa',
+                        help='Normalize as in CAFA. Consider predicted targets (pred). '
+                             'Consider all ground truth proteins (gt)')
+    parser.add_argument('-names', help='File with methods information (header: filename, group, label, is_baseline)')
     args = parser.parse_args()
 
     # Create output folder here in order to store the log file
@@ -47,7 +57,7 @@ if __name__ == '__main__':
     ontologies = []
     ns_dict = {}
     for ns, go_dict in obo_parser(args.obo_file).items():
-        ontology = Graph(ns, go_dict, ia_dict)
+        ontology = Graph(ns, go_dict, ia_dict, args.orphans)
         ontologies.append(ontology)
         for term in ontology.go_terms:
             ns_dict[term] = ontology.go_terms[term]['namespace']
@@ -62,20 +72,18 @@ if __name__ == '__main__':
     logging.debug("Prediction paths {}".format(pred_files))
 
     # Parse ground truth file
-    ne = {}  # {filename: {namespace: no_proteins}}
     gt = gt_parser(args.gt_file, ontologies, ns_dict)
     for ns in gt:
         ont = [o for o in ontologies if o.namespace == ns][0]
         # print(gt[ns].matrix.sum(axis=0))  # statistics
         _ = propagate(gt[ns], ont, ont.order)  # propagate ancestors
         # print(gt[ns].matrix.sum(axis=0))  # statistics after ancestors
-        ne[ns] = gt[ns].matrix.shape[0]  # number of proteins
 
     # Parse prediction files and perform evaluation
     dfs = []
     for file_name in pred_files:
         prediction = pred_parser(file_name, ontologies, gt, ns_dict)
-        df_pred = evaluate_prediction(prediction, gt, ontologies, ne)
+        df_pred = evaluate_prediction(prediction, gt, ontologies, tau_arr, args.norm)
         df_pred['method'] = file_name.replace(pred_folder, '').replace('/', '_')
         dfs.append(df_pred)
     df = pd.concat(dfs)

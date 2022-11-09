@@ -10,7 +10,7 @@ class Graph:
     DAG(i,j) == 1 means that the go term i is_a (or is part_of) j
     Parents that are in a different namespace are discarded
     """
-    def __init__(self, namespace, go_dict, ia_dict=None):
+    def __init__(self, namespace, go_dict, ia_dict=None, orphans=False):
         """
         go_dict = {term: {name: , namespace: , def: , alt_id: , rel:}}
         """
@@ -47,7 +47,11 @@ class Graph:
                 logging.debug('Skipping branch to external namespace: {}'.format(id2))
 
         self.order = top_sort(self)
-        self.toi = np.where(self.dag.sum(axis=1) > 0)[0]
+
+        if orphans:
+            self.toi = np.fill(self.dag.shape[1], 1)  # All terms, also those without parents
+        else:
+            self.toi = np.where(self.dag.sum(axis=1) > 0)[0]  # Only terms with parents
 
         if ia_dict is not None:
             self.set_ia(ia_dict)
