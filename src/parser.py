@@ -1,4 +1,4 @@
-from graph import Prediction, GroundTruth
+from graph import Prediction, GroundTruth, propagate
 import numpy as np
 import logging
 import xml.etree.ElementTree as ET
@@ -9,7 +9,7 @@ def obo_parser(obo_file, valid_rel=("is_a", "part_of")):
     Parse a OBO file and returns a list of ontologies, one for each namespace.
     Obsolete terms are excluded as well as external namespaces
     """
-    go_dict = {}
+    term_dict = {}
     term_id = None
     namespace = None
     name = None
@@ -26,7 +26,7 @@ def obo_parser(obo_file, valid_rel=("is_a", "part_of")):
                 if k == "id":
                     # Populate the dictionary with the previous entry
                     if term_id is not None and obsolete is False and namespace is not None:
-                        go_dict.setdefault(namespace, {})[term_id] = {'name': name,
+                        term_dict.setdefault(namespace, {})[term_id] = {'name': name,
                                                                        'namespace': namespace,
                                                                        'def': term_def,
                                                                        'alt_id': alt_id,
@@ -59,73 +59,85 @@ def obo_parser(obo_file, valid_rel=("is_a", "part_of")):
 
         # Last record
         if obsolete is False and namespace is not None:
-            go_dict.setdefault(namespace, {})[term_id] = {'name': name,
+            term_dict.setdefault(namespace, {})[term_id] = {'name': name,
                                                           'namespace': namespace,
                                                           'def': term_def,
                                                           'alt_id': alt_id,
                                                           'rel': rel}
 
-    return go_dict
+    return term_dict
 
 
-def gt_parser(gt_file, ontologies, ns_dict):
+def gt_parser(gt_file, ontologies):
     """
     Parse ground truth file
     Discard terms not included in the ontology
     """
-
     gt_dict = {}
     with open(gt_file) as f:
         for line in f:
             line = line.strip().split()
             if line:
-                p_id, go_id = line[:2]
-                if go_id in ns_dict:
-                    gt_dict.setdefault(ns_dict[go_id], {}).setdefault(p_id, []).append(go_id)
-                else:
-                    logging.debug("Term {} not in current ontology".format(go_id))
+                p_id, term_id = line[:2]
+                for ont in ontologies:
+                    if term_id in ont.terms_dict:
+                        gt_dict.setdefault(ont.namespace, {}).setdefault(p_id, []).append(term_id)
+                        break
 
     gts = {}
     for ont in ontologies:
         if gt_dict.get(ont.namespace):
-            terms = sorted([(v['index'], k, v['name']) for k, v in ont.go_terms.items()])
             matrix = np.zeros((len(gt_dict[ont.namespace]), ont.idxs), dtype='bool')
-
             ids = {}
             for i, p_id in enumerate(gt_dict[ont.namespace]):
                 ids[p_id] = i
-                for go_id in gt_dict[ont.namespace][p_id]:
-                    matrix[i, ont.go_terms[go_id]['index']] = 1
-            gts[ont.namespace] = GroundTruth(ids, matrix, terms=terms)
-            logging.info('Ground truth: {}, proteins {}'.format(ont.namespace, i))
+                for term_id in gt_dict[ont.namespace][p_id]:
+                    matrix[i, ont.terms_dict[term_id]['index']] = 1
+            logging.debug("gt matrix {} {} ".format(ont.namespace, matrix))
+            propagate(matrix, ont, ont.order)
+            logging.debug("gt matrix propagated {} {} ".format(ont.namespace, matrix))
+            gts[ont.namespace] = GroundTruth(ids, matrix, ont.namespace)
+            logging.info('Ground truth: {}, proteins {}'.format(ont.namespace, len(ids)))
 
     return gts
 
 
-def pred_parser(pred_file, ontologies, gts, ns_dict):
+def pred_parser(pred_file, ontologies, gts):
     """
     Parse a prediction file and returns a list of prediction objects, one for each namespace
     """
+
+    ns_dict = {}  # {namespace: term}
+    for ont in ontologies:
+        for term in ont.terms_dict:
+            ns_dict[term] = ont.namespace
+
+    # Slow step if the input file is huge, ca. 1 minute for 5GB input on SSD
     pred_dict = {}
     with open(pred_file) as f:
         for line in f:
             line = line.strip().split()
             if line and len(line) > 2:
-                p_id, go_id, prob = line[:3]
-                if gts.get(ns_dict.get(go_id)) and p_id in gts[ns_dict[go_id]].ids:
-                    pred_dict.setdefault(ns_dict[go_id], {}).setdefault(p_id, []).append((go_id, prob))
+                p_id, term_id, prob = line[:3]
+                ns = ns_dict.get(term_id)
+                if ns is not None and gts.get(ns) and p_id in gts[ns].ids:
+                    pred_dict.setdefault(ns, {}).setdefault(p_id, []).append((term_id, prob))
 
     predictions = []
     for ont in ontologies:
         ns = ont.namespace
         if ns in pred_dict:
-            matrix = np.zeros((len(pred_dict[ns]), ont.idxs), dtype='float')
+            matrix = np.zeros(gts[ns].matrix.shape, dtype='float')
             ids = {}
-            for i, p_id in enumerate(pred_dict[ns].keys()):
+            for p_id in pred_dict[ns].keys():
+                i = gts[ns].ids[p_id]
                 ids[p_id] = i
-                for go_id, prob in pred_dict[ns][p_id]:
-                    j = ont.go_terms.get(go_id)['index']
+                for term_id, prob in pred_dict[ns][p_id]:
+                    j = ont.terms_dict.get(term_id)['index']
                     matrix[i, j] = prob
+            logging.debug("pred matrix {} {} ".format(ns, matrix))
+            propagate(matrix, ont, ont.order)
+            logging.debug("pred matrix {} {} ".format(ns, matrix))
             predictions.append(Prediction(ids, matrix, len(pred_dict[ns]), ns))
             logging.info("Prediction: {}, {}, proteins {}".format(pred_file, ns, len(pred_dict[ns])))
 

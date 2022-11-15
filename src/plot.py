@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
-import logging
+# import logging
+plt.set_loglevel("info")
 
 
 def get_best_methods(df_ns, metric_col, ascending):
@@ -27,6 +28,8 @@ def plot_curves(out_file, df, groups, ascending, metric_col, x_col, y_col, x_lab
     fig, ax = plt.subplots(figsize=(10, 10))
     for method, df_m in df.groupby(level='label', sort=False):
         best = df_m.loc[df_m[metric_col].idxmax()] if ascending is False else df_m.loc[df_m[metric_col].idxmin()]
+        # df_m.sort_values(by=[y_col, x_col], ascending=[False, True], inplace=True)
+        # print(df_m)
         color = cmap.colors[groups.get_loc(best.name[1]) % len(cmap.colors)]
         if label_colors is not None and method in label_colors:
             color = label_colors[method]
