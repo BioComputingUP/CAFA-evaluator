@@ -3,6 +3,8 @@ import logging
 import os
 import pandas as pd
 import numpy as np
+from scipy import stats
+import matplotlib.pyplot as plt
 
 from graph import Graph, propagate
 from parser import obo_parser, gt_parser, pred_parser, ia_parser
@@ -95,43 +97,49 @@ if __name__ == '__main__':
         df['label'].fillna(df['method'], inplace=True)
         df['is_baseline'].fillna(False, inplace=True)
 
-    df.set_index(['ns', 'group', 'label'], inplace=True)
+    df = df[df['cov'] > 0]
 
-    # Groups are defined here so that they will have the same color in different namespaces
-    groups = df.index.get_level_values('group').unique()
+    for metric, cols in [('f', ['pr', 'rc']), ('wf', ['wpr', 'wrc']), ('s', ['mi', 'ru'])]:
+        index_best = df.groupby(['group', 'ns'])[metric].idxmax() if metric in ['f', 'wf'] else \
+        df.groupby(['group', 'ns'])[metric].idxmin()
+        df_best = df.loc[index_best]
+        df_methods = df.loc[
+            df['label'].isin(df_best['label']), ['ns', 'group', 'label', 'tau', 'cov'] + cols + [metric]]
+        df_methods.to_csv("{}/eval_{}.tsv".format(out_folder, metric), float_format="%.3f", sep="\t", index=False)
+        df_hmean = df_best.groupby('label', as_index=False)[['tau', 'cov', metric]].agg(stats.hmean)
+        df_hmean.to_csv("{}/hmean_{}.tsv".format(out_folder, metric), float_format="%.3f", sep="\t", index=False)
 
-    # Plot and write results to file
-    for ns, df_ns in df.groupby(level='ns'):
+        df_best['label_name'] = df_best.agg(
+            lambda x: f"{x['label']} ({metric.upper()}={x[metric]:.3f} C={x['cov']:.3f}", axis=1)
 
-        # Precision recall
-        df_best_methods = get_best_methods(df_ns, 'f', False)
-        df_best_methods.to_csv("{}/prrc_{}.tsv".format(out_folder, ns), sep='\t', float_format="%.3f",
-                               columns=['pr', 'rc', 'f', 'cov'])
+        for ns, df_g_ns in df_methods.groupby('ns'):
+            fig, ax = plt.subplots(figsize=(10, 10))
+            df_g_ns.groupby('label').plot(x=cols[0], y=cols[1], ax=ax)
 
-        plot_curves("{}/prrc_{}.png".format(out_folder, ns), df_best_methods, groups, False,
-                    'f', 'rc', 'pr', 'Recall', 'Precision',
-                    x_lim=(0, 1), y_lim=(0, 1),
-                    label_colors={'blast': (0, 0, 1), 'naive': (1, 0, 0)})
+            plt.xlim(0, max(1, df_g_ns[cols[0]].max()))
+            plt.ylim(0, max(1, df_g_ns[cols[1]].max()))
 
-        if args.ia is not None:
+            df_best_ns = df_best.loc[df_best['ns'] == ns]
+            ax.legend(df_best_ns['label_name'])
+            ax.plot(df_best_ns[cols[0]], df_best_ns[cols[1]], 'o')
+            plt.savefig("{}/fig_{}_{}.png".format(out_folder, ns, metric), bbox_inches='tight')
+            plt.close('all')
+            # break
 
-            # Weighted precision recall
-            df_best_methods = get_best_methods(df_ns, 'wf', False)
-            df_best_methods.to_csv("{}/wprrc_{}.tsv".format(out_folder, ns), sep='\t', float_format="%.3f",
-                                   columns=['wpr', 'wrc', 'wf', 'cov'])
 
-            plot_curves("{}/wprrc_{}.png".format(out_folder, ns), df_best_methods, groups, False,
-                        'wf', 'wrc', 'wpr', 'Recall', 'Precision',
-                        x_lim=(0, 1), y_lim=(0, 1),
-                        label_colors={'blast': (0, 0, 1), 'naive': (1, 0, 0)})
-
-            # Misinformation
-            df_best_methods = get_best_methods(df_ns, 's', True)
-            df_best_methods.to_csv("{}/miru_{}.tsv".format(out_folder, ns), sep='\t', float_format="%.3f",
-                                   columns=['mi', 'ru', 's', 'cov'])
-
-            plot_curves("{}/miru_{}.png".format(out_folder, ns), df_best_methods, groups, True,
-                        's', 'ru', 'mi', 'Remaining uncertainty', 'Misinformation',
-                        x_lim=(0, None), y_lim=(0, None),
-                        label_colors={'blast': (0, 0, 1), 'naive': (1, 0, 0)})
+    # for ns, df_ns in df.groupby('ns'):
+    #     plot_curves("{}/prrc_{}.png".format(out_folder, ns), df_ns, groups, False,
+    #                     'f', 'rc', 'pr', 'Recall', 'Precision',
+    #                     x_lim=(0, 1), y_lim=(0, 1),
+    #                     label_colors={'blast': (0, 0, 1), 'naive': (1, 0, 0)})
+    #
+    #     if args.ia is not None:
+    #         plot_curves("{}/wprrc_{}.png".format(out_folder, ns), df_ns, groups, False,
+    #                     'wf', 'wrc', 'wpr', 'Recall', 'Precision',
+    #                     x_lim=(0, 1), y_lim=(0, 1),
+    #                     label_colors={'blast': (0, 0, 1), 'naive': (1, 0, 0)})
+    #         plot_curves("{}/miru_{}.png".format(out_folder, ns), df_ns, groups, True,
+    #                     's', 'ru', 'mi', 'Remaining uncertainty', 'Misinformation',
+    #                     x_lim=(0, None), y_lim=(0, None),
+    #                     label_colors={'blast': (0, 0, 1), 'naive': (1, 0, 0)})
 

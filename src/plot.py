@@ -26,11 +26,12 @@ def plot_curves(out_file, df, groups, ascending, metric_col, x_col, y_col, x_lab
     """
     cmap = plt.get_cmap('tab10')
     fig, ax = plt.subplots(figsize=(10, 10))
-    for method, df_m in df.groupby(level='label', sort=False):
+    for method, df_m in df.groupby('label', sort=False):
         best = df_m.loc[df_m[metric_col].idxmax()] if ascending is False else df_m.loc[df_m[metric_col].idxmin()]
         # df_m.sort_values(by=[y_col, x_col], ascending=[False, True], inplace=True)
         # print(df_m)
-        color = cmap.colors[groups.get_loc(best.name[1]) % len(cmap.colors)]
+        # color = cmap.colors[groups.get_loc(best.name[1]) % len(cmap.colors)]
+        color = cmap.colors[groups.get_loc(best.label) % len(cmap.colors)]
         if label_colors is not None and method in label_colors:
             color = label_colors[method]
         # Curve
