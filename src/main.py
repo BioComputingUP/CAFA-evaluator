@@ -102,6 +102,9 @@ if __name__ == '__main__':
     df = df[df['cov'] > 0].reset_index(drop=True)
     df.set_index(['group', 'label', 'ns', 'tau'], inplace=True)
 
+    plt.rcParams.update({'font.size': 22})
+
+    # Set a different color for each group
     cmap = plt.get_cmap('tab20')
     df['colors'] = df.index.get_level_values('group')
     df['colors'] = pd.factorize(df['colors'])[0]
@@ -109,31 +112,45 @@ if __name__ == '__main__':
 
     for metric, cols in [('f', ['rc', 'pr']), ('wf', ['wrc', 'wpr']), ('s', ['ru', 'mi'])]:
 
+        # Identify which (group, label, namespace, tau) is best for each namespace and group (or method)
         index_best = df.groupby(level=['group', 'ns'])[metric].idxmax() if metric in ['f', 'wf'] else df.groupby(['group', 'ns'])[metric].idxmin()
+
+        # Get best rows slice
         df_best = df.loc[index_best, ['cov', 'colors'] + cols + [metric]]
+
+        # Get best methods slice
         df_methods = df.reset_index('tau').loc[[ele[:-1] for ele in index_best], ['tau', 'cov', 'colors'] + cols + [metric]].sort_index()
 
+        # Set some columns for plots and output files
         df_best['max_cov'] = df_methods.groupby(level=['group', 'label', 'ns'])['cov'].max()
         df_best['label'] = df_best.index.get_level_values('label')
         df_best['label'] = df_best.agg(lambda x: f"{x['label']} ({metric.upper()}={x[metric]:.3f} C={x['max_cov']:.3f})", axis=1)
 
+        # Save all values to file
         df_methods.reset_index().drop(columns=['colors']).to_csv('{}/eval_{}.tsv'.format(out_folder, metric), float_format="%.3f", sep="\t", index=False)
 
-        df_hmean = df_best.groupby(level='group')[['cov', 'max_cov', metric]].agg(stats.hmean)
+        # Calculate the harmonic mean across namespaces for each group (or method)
+        df_hmean = df_best.groupby(level='group')[['cov', 'max_cov', metric]].agg(stats.hmean).sort_values(metric, ascending=False if metric in ['f', 'wf'] else True)
         df_hmean.to_csv('{}/hmean_{}.tsv'.format(out_folder, metric), float_format="%.3f", sep="\t")
 
+        # Plot for each namespace
         for ns, df_g in df_best.groupby(level='ns'):
             fig, ax = plt.subplots(figsize=(15, 15))
 
-            for i, (index, row) in enumerate(df_g.sort_values(by=[metric, 'max_cov'], ascending=[False, False]).iterrows()):
+            for i, (index, row) in enumerate(df_g.sort_values(by=[metric, 'max_cov'], ascending=[False if metric in ['f', 'wf'] else True, False]).iterrows()):
                 data = df_methods.loc[index[:-1]]
-                ax.plot(data[cols[0]], data[cols[1]], color=row['colors'], label=row['label'], zorder=1000 - i)
-                ax.plot(row[cols[0]], row[cols[1]], color=row['colors'], marker='o', zorder=1000 - i)
+                ax.plot(data[cols[0]], data[cols[1]], color=row['colors'], label=row['label'], lw=2, zorder=500 - i)
+                ax.plot(row[cols[0]], row[cols[1]], color=row['colors'], marker='o', markersize=12, mfc='none', zorder=1000 - i)
+                ax.plot(row[cols[0]], row[cols[1]], color=row['colors'], marker='o', markersize=6, zorder=1000 - i)
 
-            ax.legend()
+            ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
-            plt.xlim(0, max(1, df_methods.loc[:, :, ns][cols[0]].max()))
-            plt.ylim(0, max(1, df_methods.loc[:, :, ns][cols[1]].max()))
+            plt.xlim(0, max(1, df_best.loc[:, :, ns, :][cols[0]].max()))
+            plt.ylim(0, max(1, df_best.loc[:, :, ns, :][cols[1]].max()))
+
+            ax.set_title(ns)
+            ax.set_xlabel(cols[0])
+            ax.set_ylabel(cols[1])
 
             plt.savefig("{}/fig_{}_{}.png".format(out_folder, metric, ns), bbox_inches='tight')
             plt.clf()

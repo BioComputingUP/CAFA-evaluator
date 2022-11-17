@@ -130,20 +130,32 @@ GO:0000408 9.67
 
 ### Output
 
-* < metric >_< name_space >.png - 3 files for each namespace. The metric can be: 
-  * *prrc*, Precision / recall curves
-  * *wprrc*, Weighted precision / recall curves. This file is generated only when IA is provided.
-  * *miru*, Misinformation / remaining uncertainty curves. This file is generated only when IA is provided.
-* < metric >_< name_space >.tsv - The corresponding curve points
-* info.log - Log file. Information is appended
+#### fig_< metric >_< name_space >.png
+The metric can be: 
+  * *f*, Precision / recall curves
+  * *wf*, Weighted precision / recall curves. This file is generated only when IA is provided.
+  * *s*, Misinformation / remaining uncertainty curves. This file is generated only when IA is provided.
 
-An example output file, *wprrc_molecular_function.tsv*:
+#### eval_< metric >.tsv - The corresponding curve points
+Example output file *eval_f.tsv*:
 ```
-ns	group	label	tau	wpr	wrc	wf	cov
-molecular_function	inga.txt	inga.txt	0.600	0.619	0.457	0.526	0.800
-molecular_function	inga.txt	inga.txt	0.590	0.619	0.457	0.526	0.800
-molecular_function	inga.txt	inga.txt	0.580	0.619	0.457	0.526	0.800
-molecular_function	inga.txt	inga.txt	0.570	0.598	0.476	0.530	0.805
-molecular_function	inga.txt	inga.txt	0.560	0.579	0.493	0.533	0.808
-molecular_function	inga.txt	inga.txt	0.550	0.571	0.504	0.535	0.813
+group	label	ns	tau	cov	rc	pr	f
+INGA	INGA_2	biological_process	0.010	0.993	0.641	0.117	0.197
+INGA	INGA_2	biological_process	0.020	0.993	0.640	0.117	0.198
+INGA	INGA_2	biological_process	0.030	0.993	0.637	0.118	0.199
+INGA	INGA_2	biological_process	0.040	0.993	0.635	0.119	0.201
+INGA	INGA_2	biological_process	0.050	0.993	0.633	0.121	0.203
+INGA	INGA_2	biological_process	0.060	0.993	0.629	0.124	0.208
+INGA	INGA_2	biological_process	0.070	0.993	0.629	0.124	0.208
+INGA	INGA_2	biological_process	0.080	0.993	0.626	0.126	0.210
 ```
+
+#### hmean_< metric >.tsv - The harmonic mean across namespace
+Example output file *eval_f.tsv*:
+```
+group	cov	max_cov	f
+INGA	0.943	0.992	0.470
+```
+
+#### info.log
+Log file. Information is appended
