@@ -102,37 +102,38 @@ if __name__ == '__main__':
     df = df[df['cov'] > 0].reset_index(drop=True)
     df.set_index(['group', 'label', 'ns', 'tau'], inplace=True)
 
-    cmap = plt.get_cmap('tab10')
-    colors = df.index.get_level_values('group')
-    colors = pd.factorize(colors)[0]
-    colors = [cmap.colors[c % len(cmap.colors)] for c in colors]
+    cmap = plt.get_cmap('tab20')
+    df['colors'] = df.index.get_level_values('group')
+    df['colors'] = pd.factorize(df['colors'])[0]
+    df['colors'] = df['colors'].apply(lambda x: cmap.colors[x % len(cmap.colors)])
 
     for metric, cols in [('f', ['rc', 'pr']), ('wf', ['wrc', 'wpr']), ('s', ['ru', 'mi'])]:
+
         index_best = df.groupby(level=['group', 'ns'])[metric].idxmax() if metric in ['f', 'wf'] else df.groupby(['group', 'ns'])[metric].idxmin()
+        df_best = df.loc[index_best, ['cov', 'colors'] + cols + [metric]]
+        df_methods = df.reset_index('tau').loc[[ele[:-1] for ele in index_best], ['tau', 'cov', 'colors'] + cols + [metric]].sort_index()
 
-        df_methods = df.reset_index('tau').loc[[ele[:-1] for ele in index_best], ['tau', 'cov'] + cols + [metric]]
-        df_methods.reset_index().to_csv('{}/eval_{}.tsv'.format(out_folder, metric), float_format="%.3f", sep="\t", index=False)
-
-        df_best = df.loc[index_best, ['cov'] + cols + [metric]]
         df_best['max_cov'] = df_methods.groupby(level=['group', 'label', 'ns'])['cov'].max()
-
         df_best['label'] = df_best.index.get_level_values('label')
-        df_best['label'] = df_best.agg(lambda x: f"{x['label']} ({metric.upper()}={x[metric]:.3f} C={x['max_cov']:.3f}", axis=1)
+        df_best['label'] = df_best.agg(lambda x: f"{x['label']} ({metric.upper()}={x[metric]:.3f} C={x['max_cov']:.3f})", axis=1)
+
+        df_methods.reset_index().drop(columns=['colors']).to_csv('{}/eval_{}.tsv'.format(out_folder, metric), float_format="%.3f", sep="\t", index=False)
 
         df_hmean = df_best.groupby(level='group')[['cov', 'max_cov', metric]].agg(stats.hmean)
         df_hmean.to_csv('{}/hmean_{}.tsv'.format(out_folder, metric), float_format="%.3f", sep="\t")
 
-        for ns, df_g_ns in df_methods.groupby('ns'):
-            fig, ax = plt.subplots(figsize=(10, 10))
-            df_g_ns.groupby('label').plot(x=cols[0], y=cols[1], ax=ax, color=colors)
+        for ns, df_g in df_best.groupby(level='ns'):
+            fig, ax = plt.subplots(figsize=(15, 15))
 
-            plt.xlim(0, max(1, df_g_ns[cols[0]].max()))
-            plt.ylim(0, max(1, df_g_ns[cols[1]].max()))
+            for i, (index, row) in enumerate(df_g.sort_values(by=[metric, 'max_cov'], ascending=[False, False]).iterrows()):
+                data = df_methods.loc[index[:-1]]
+                ax.plot(data[cols[0]], data[cols[1]], color=row['colors'], label=row['label'], zorder=1000 - i)
+                ax.plot(row[cols[0]], row[cols[1]], color=row['colors'], marker='o', zorder=1000 - i)
 
-            df_best_ns = df_best.loc[:, :, ns, :]
+            ax.legend()
 
-            ax.legend(df_best_ns['label'])
-            ax.plot(df_best_ns[cols[0]], df_best_ns[cols[1]], 'o')
+            plt.xlim(0, max(1, df_methods.loc[:, :, ns][cols[0]].max()))
+            plt.ylim(0, max(1, df_methods.loc[:, :, ns][cols[1]].max()))
 
             plt.savefig("{}/fig_{}_{}.png".format(out_folder, metric, ns), bbox_inches='tight')
             plt.clf()
