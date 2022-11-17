@@ -92,54 +92,48 @@ if __name__ == '__main__':
         # Set method information (optional)
         methods = pd.read_csv(args.names, delim_whitespace=True)
         logging.debug("Methods {}".format(methods))
-        df = pd.merge(df, methods, left_on='method', right_on='name', how='left')
+        df = pd.merge(df, methods, left_on='method', right_on='filename', how='left')
         df['group'].fillna(df['method'], inplace=True)
         df['label'].fillna(df['method'], inplace=True)
-        df['is_baseline'].fillna(False, inplace=True)
+        if 'is_baseline' not in df:
+            df['is_baseline'] = False
+        else:
+            df['is_baseline'].fillna(False, inplace=True)
 
-    df = df[df['cov'] > 0]
+    df = df[df['cov'] > 0].reset_index(drop=True)
+    df.set_index(['group', 'label', 'ns', 'tau'], inplace=True)
 
-    for metric, cols in [('f', ['pr', 'rc']), ('wf', ['wpr', 'wrc']), ('s', ['mi', 'ru'])]:
-        index_best = df.groupby(['group', 'ns'])[metric].idxmax() if metric in ['f', 'wf'] else \
-        df.groupby(['group', 'ns'])[metric].idxmin()
-        df_best = df.loc[index_best]
-        df_methods = df.loc[
-            df['label'].isin(df_best['label']), ['ns', 'group', 'label', 'tau', 'cov'] + cols + [metric]]
-        df_methods.to_csv("{}/eval_{}.tsv".format(out_folder, metric), float_format="%.3f", sep="\t", index=False)
-        df_hmean = df_best.groupby('label', as_index=False)[['tau', 'cov', metric]].agg(stats.hmean)
-        df_hmean.to_csv("{}/hmean_{}.tsv".format(out_folder, metric), float_format="%.3f", sep="\t", index=False)
+    cmap = plt.get_cmap('tab10')
+    colors = df.index.get_level_values('group')
+    colors = pd.factorize(colors)[0]
+    colors = [cmap.colors[c % len(cmap.colors)] for c in colors]
 
-        df_best['label_name'] = df_best.agg(
-            lambda x: f"{x['label']} ({metric.upper()}={x[metric]:.3f} C={x['cov']:.3f}", axis=1)
+    for metric, cols in [('f', ['rc', 'pr']), ('wf', ['wrc', 'wpr']), ('s', ['ru', 'mi'])]:
+        index_best = df.groupby(level=['group', 'ns'])[metric].idxmax() if metric in ['f', 'wf'] else df.groupby(['group', 'ns'])[metric].idxmin()
+
+        df_methods = df.reset_index('tau').loc[[ele[:-1] for ele in index_best], ['tau', 'cov'] + cols + [metric]]
+        df_methods.reset_index().to_csv('{}/eval_{}.tsv'.format(out_folder, metric), float_format="%.3f", sep="\t", index=False)
+
+        df_best = df.loc[index_best, ['cov'] + cols + [metric]]
+        df_best['max_cov'] = df_methods.groupby(level=['group', 'label', 'ns'])['cov'].max()
+
+        df_best['label'] = df_best.index.get_level_values('label')
+        df_best['label'] = df_best.agg(lambda x: f"{x['label']} ({metric.upper()}={x[metric]:.3f} C={x['max_cov']:.3f}", axis=1)
+
+        df_hmean = df_best.groupby(level='group')[['cov', 'max_cov', metric]].agg(stats.hmean)
+        df_hmean.to_csv('{}/hmean_{}.tsv'.format(out_folder, metric), float_format="%.3f", sep="\t")
 
         for ns, df_g_ns in df_methods.groupby('ns'):
             fig, ax = plt.subplots(figsize=(10, 10))
-            df_g_ns.groupby('label').plot(x=cols[0], y=cols[1], ax=ax)
+            df_g_ns.groupby('label').plot(x=cols[0], y=cols[1], ax=ax, color=colors)
 
             plt.xlim(0, max(1, df_g_ns[cols[0]].max()))
             plt.ylim(0, max(1, df_g_ns[cols[1]].max()))
 
-            df_best_ns = df_best.loc[df_best['ns'] == ns]
-            ax.legend(df_best_ns['label_name'])
+            df_best_ns = df_best.loc[:, :, ns, :]
+
+            ax.legend(df_best_ns['label'])
             ax.plot(df_best_ns[cols[0]], df_best_ns[cols[1]], 'o')
-            plt.savefig("{}/fig_{}_{}.png".format(out_folder, ns, metric), bbox_inches='tight')
-            plt.close('all')
-            # break
 
-
-    # for ns, df_ns in df.groupby('ns'):
-    #     plot_curves("{}/prrc_{}.png".format(out_folder, ns), df_ns, groups, False,
-    #                     'f', 'rc', 'pr', 'Recall', 'Precision',
-    #                     x_lim=(0, 1), y_lim=(0, 1),
-    #                     label_colors={'blast': (0, 0, 1), 'naive': (1, 0, 0)})
-    #
-    #     if args.ia is not None:
-    #         plot_curves("{}/wprrc_{}.png".format(out_folder, ns), df_ns, groups, False,
-    #                     'wf', 'wrc', 'wpr', 'Recall', 'Precision',
-    #                     x_lim=(0, 1), y_lim=(0, 1),
-    #                     label_colors={'blast': (0, 0, 1), 'naive': (1, 0, 0)})
-    #         plot_curves("{}/miru_{}.png".format(out_folder, ns), df_ns, groups, True,
-    #                     's', 'ru', 'mi', 'Remaining uncertainty', 'Misinformation',
-    #                     x_lim=(0, None), y_lim=(0, None),
-    #                     label_colors={'blast': (0, 0, 1), 'naive': (1, 0, 0)})
-
+            plt.savefig("{}/fig_{}_{}.png".format(out_folder, metric, ns), bbox_inches='tight')
+            plt.clf()
