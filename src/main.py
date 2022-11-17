@@ -9,7 +9,6 @@ import matplotlib.pyplot as plt
 from graph import Graph, propagate
 from parser import obo_parser, gt_parser, pred_parser, ia_parser
 from evaluation import get_leafs_idx, get_roots_idx, evaluate_prediction
-from plot import get_best_methods, plot_curves
 
 # Tau array, used to compute metrics at different score thresholds
 tau_arr = np.arange(0.01, 1, 0.01)
