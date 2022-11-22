@@ -64,7 +64,6 @@ def obo_parser(obo_file, valid_rel=("is_a", "part_of")):
                                                           'def': term_def,
                                                           'alt_id': alt_id,
                                                           'rel': rel}
-
     return term_dict
 
 
@@ -94,7 +93,7 @@ def gt_parser(gt_file, ontologies):
                 for term_id in gt_dict[ont.namespace][p_id]:
                     matrix[i, ont.terms_dict[term_id]['index']] = 1
             logging.debug("gt matrix {} {} ".format(ont.namespace, matrix))
-            propagate(matrix, ont, ont.order)
+            propagate(matrix, ont, ont.order, mode='max')
             logging.debug("gt matrix propagated {} {} ".format(ont.namespace, matrix))
             gts[ont.namespace] = GroundTruth(ids, matrix, ont.namespace)
             logging.info('Ground truth: {}, proteins {}'.format(ont.namespace, len(ids)))
@@ -102,7 +101,7 @@ def gt_parser(gt_file, ontologies):
     return gts
 
 
-def pred_parser(pred_file, ontologies, gts):
+def pred_parser(pred_file, ontologies, gts, prop_mode):
     """
     Parse a prediction file and returns a list of prediction objects, one for each namespace
     """
@@ -135,9 +134,11 @@ def pred_parser(pred_file, ontologies, gts):
                 for term_id, prob in pred_dict[ns][p_id]:
                     j = ont.terms_dict.get(term_id)['index']
                     matrix[i, j] = prob
+
             logging.debug("pred matrix {} {} ".format(ns, matrix))
-            propagate(matrix, ont, ont.order)
+            propagate(matrix, ont, ont.order, mode=prop_mode)
             logging.debug("pred matrix {} {} ".format(ns, matrix))
+
             predictions.append(Prediction(ids, matrix, len(pred_dict[ns]), ns))
             logging.info("Prediction: {}, {}, proteins {}".format(pred_file, ns, len(pred_dict[ns])))
 
@@ -154,7 +155,7 @@ def ia_parser(file):
     return ia_dict
 
 
-def parse_sprot(input_file, output_file):
+def parse_sprot_xml(input_file, output_file):
     """
     Parse the Swiss-Prot XML annotation file
     and write a TSV file with:

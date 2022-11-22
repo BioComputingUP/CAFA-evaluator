@@ -4,9 +4,8 @@ import os
 import pandas as pd
 import numpy as np
 from scipy import stats
-import matplotlib.pyplot as plt
 
-from graph import Graph, propagate
+from graph import Graph
 from parser import obo_parser, gt_parser, pred_parser, ia_parser
 from evaluation import get_leafs_idx, get_roots_idx, evaluate_prediction
 
@@ -29,7 +28,9 @@ if __name__ == '__main__':
     parser.add_argument('-norm', choices=['cafa', 'pred', 'gt'], default='cafa',
                         help='Normalize as in CAFA. Consider predicted targets (pred). '
                              'Consider all ground truth proteins (gt)')
-    parser.add_argument('-names', help='File with methods information (header: filename group label is_baseline)')
+    parser.add_argument('-prop', choices=['max', 'fill'], default='fill',
+                        help='Ancestor propagation strategy. Max - Propagate the max score of the traversed subgraph '
+                             'iteratively. Fill - Fill with max until a different score is assigned')
     args = parser.parse_args()
 
     # Create output folder here in order to store the log file
@@ -76,81 +77,25 @@ if __name__ == '__main__':
     # Parse prediction files and perform evaluation
     dfs = []
     for file_name in pred_files:
-        prediction = pred_parser(file_name, ontologies, gt)
+        prediction = pred_parser(file_name, ontologies, gt, args.prop)
         df_pred = evaluate_prediction(prediction, gt, ontologies, tau_arr, args.norm)
-        df_pred['method'] = file_name.replace(pred_folder, '').replace('/', '_')
+        df_pred['filename'] = file_name.replace(pred_folder, '').replace('/', '_')
         dfs.append(df_pred)
     df = pd.concat(dfs)
 
-    # Add method labels and groups
-    if args.names is None:
-        df['group'] = df['method']
-        df['label'] = df['method']
-        df['is_baseline'] = False
-    else:
-        # Set method information (optional)
-        methods = pd.read_csv(args.names, delim_whitespace=True)
-        logging.debug("Methods {}".format(methods))
-        df = pd.merge(df, methods, left_on='method', right_on='filename', how='left')
-        df['group'].fillna(df['method'], inplace=True)
-        df['label'].fillna(df['method'], inplace=True)
-        if 'is_baseline' not in df:
-            df['is_baseline'] = False
-        else:
-            df['is_baseline'].fillna(False, inplace=True)
-
+    # Save the dataframe
     df = df[df['cov'] > 0].reset_index(drop=True)
-    df.set_index(['group', 'label', 'ns', 'tau'], inplace=True)
+    df.set_index(['filename', 'ns', 'tau'], inplace=True)
+    df.to_csv('{}/df_all.tsv'.format(out_folder), sep="\t")
 
-    plt.rcParams.update({'font.size': 22})
-
-    # Set a different color for each group
-    cmap = plt.get_cmap('tab20')
-    df['colors'] = df.index.get_level_values('group')
-    df['colors'] = pd.factorize(df['colors'])[0]
-    df['colors'] = df['colors'].apply(lambda x: cmap.colors[x % len(cmap.colors)])
-
+    # Calculate harmonic mean across namespaces for each evaluation metric
     for metric, cols in [('f', ['rc', 'pr']), ('wf', ['wrc', 'wpr']), ('s', ['ru', 'mi'])]:
 
-        # Identify which (group, label, namespace, tau) is best for each namespace and group (or method)
-        index_best = df.groupby(level=['group', 'ns'])[metric].idxmax() if metric in ['f', 'wf'] else df.groupby(['group', 'ns'])[metric].idxmin()
+        index_best = df.groupby(level=['filename', 'ns'])[metric].idxmax() if metric in ['f', 'wf'] else df.groupby(['filename', 'ns'])[metric].idxmin()
 
-        # Get best rows slice
-        df_best = df.loc[index_best, ['cov', 'colors'] + cols + [metric]]
+        df_best = df.loc[index_best]
+        df_best['max_cov'] = df.reset_index('tau').loc[[ele[:-1] for ele in index_best]].groupby(level=['filename', 'ns'])['cov'].max()
 
-        # Get best methods slice
-        df_methods = df.reset_index('tau').loc[[ele[:-1] for ele in index_best], ['tau', 'cov', 'colors'] + cols + [metric]].sort_index()
-
-        # Set some columns for plots and output files
-        df_best['max_cov'] = df_methods.groupby(level=['group', 'label', 'ns'])['cov'].max()
-        df_best['label'] = df_best.index.get_level_values('label')
-        df_best['label'] = df_best.agg(lambda x: f"{x['label']} ({metric.upper()}={x[metric]:.3f} C={x['max_cov']:.3f})", axis=1)
-
-        # Save all values to file
-        df_methods.reset_index().drop(columns=['colors']).to_csv('{}/eval_{}.tsv'.format(out_folder, metric), float_format="%.3f", sep="\t", index=False)
-
-        # Calculate the harmonic mean across namespaces for each group (or method)
-        df_hmean = df_best.groupby(level='group')[['cov', 'max_cov', metric]].agg(stats.hmean).sort_values(metric, ascending=False if metric in ['f', 'wf'] else True)
+        df_hmean = df_best.groupby(level='filename')[cols + ['cov', 'max_cov'] + [metric]].agg(stats.hmean).sort_values(metric, ascending=False if metric in ['f', 'wf'] else True)
         df_hmean.to_csv('{}/hmean_{}.tsv'.format(out_folder, metric), float_format="%.3f", sep="\t")
 
-        # Plot for each namespace
-        for ns, df_g in df_best.groupby(level='ns'):
-            fig, ax = plt.subplots(figsize=(15, 15))
-
-            for i, (index, row) in enumerate(df_g.sort_values(by=[metric, 'max_cov'], ascending=[False if metric in ['f', 'wf'] else True, False]).iterrows()):
-                data = df_methods.loc[index[:-1]]
-                ax.plot(data[cols[0]], data[cols[1]], color=row['colors'], label=row['label'], lw=2, zorder=500 - i)
-                ax.plot(row[cols[0]], row[cols[1]], color=row['colors'], marker='o', markersize=12, mfc='none', zorder=1000 - i)
-                ax.plot(row[cols[0]], row[cols[1]], color=row['colors'], marker='o', markersize=6, zorder=1000 - i)
-
-            ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-
-            plt.xlim(0, max(1, df_best.loc[:, :, ns, :][cols[0]].max()))
-            plt.ylim(0, max(1, df_best.loc[:, :, ns, :][cols[1]].max()))
-
-            ax.set_title(ns)
-            ax.set_xlabel(cols[0])
-            ax.set_ylabel(cols[1])
-
-            plt.savefig("{}/fig_{}_{}.png".format(out_folder, metric, ns), bbox_inches='tight')
-            plt.clf()

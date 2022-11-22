@@ -135,9 +135,9 @@ class GroundTruth:
         self.namespace = namespace
 
 
-def propagate(matrix, ont, order):
+def propagate(matrix, ont, order, mode='max'):
     """
-    Update inplace the score matrix (proteins x terms) with terms propagated upwards
+    Update inplace the score matrix (proteins x terms) up to the root taking the max between children and parents
     """
     if matrix.shape[0] == 0:
         raise Exception("Empty matrix")
@@ -145,14 +145,20 @@ def propagate(matrix, ont, order):
     deepest = np.where(np.sum(matrix[:, order], axis=0) > 0)[0][0]
     if deepest.size == 0:
         raise Exception("The matrix is empty")
-    order = np.delete(order, [range(0, deepest)])
 
-    for i in order:
-        current = np.where(ont.dag[:, i] != 0)[0]
-        if current.size > 0:
-            cols = np.concatenate((current, [i]))
+    # Remove leaves
+    order_ = np.delete(order, [range(0, deepest)])
+
+    for i in order_:
+        # Get direct children
+        children = np.where(ont.dag[:, i] != 0)[0]
+        cols = np.concatenate((children, [i]))
+        if mode == 'max':
             matrix[:, i] = matrix[:, cols].max(axis=1)
-
+        elif mode == 'fill':
+            rows = np.where(matrix[:, i] == 0)[0]
+            idx = np.ix_(rows, cols)
+            matrix[rows, i] = matrix[idx].max(axis=1)[0]
     return
 
 
