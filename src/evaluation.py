@@ -18,19 +18,6 @@ def solidify_prediction(pred, tau):
     return pred >= tau
 
 
-# Return the rows of the ground truth matrix that match the rows of the prediction matrix
-# def build_gt(preds, gt, gt_ids):
-#     g = np.zeros((len(preds.ids), gt.shape[1]), dtype='bool')
-#     for p_id, idx in preds.ids.items():
-#         if p_id in gt_ids:
-#             gt_idx = gt_ids[p_id]
-#             g[idx, :] = gt[gt_idx, :]
-#         else:
-#             logging.info("protein id:", p_id)
-#             raise Exception("A predicted protein id is not contained in the ground truth")
-#     return g
-
-
 # computes the f metric for each precision and recall in the input arrays
 def compute_f(pr, rc):
     n = 2 * pr * rc
@@ -57,8 +44,6 @@ def compute_metrics(pred, gt, toi, tau_arr, ic_arr=None):
     wrc_list = np.zeros(len(tau_arr), dtype='float')
     cov_list = np.zeros(len(tau_arr), dtype='int')
 
-    # TODO check here, gt is built only considering predicted proteins
-    # g = build_gt(pred, gt)[:, toi]
     g = gt.matrix[:, toi]
     n_gt = g.sum(axis=1)
     if ic_arr is not None:
@@ -81,11 +66,6 @@ def compute_metrics(pred, gt, toi, tau_arr, ic_arr=None):
         pr_list[i] = np.divide(n_intersection, n_pred, out=np.zeros_like(n_intersection, dtype='float'), where=n_pred > 0).sum()
         rc_list[i] = np.divide(n_intersection, n_gt, out=np.zeros_like(n_gt, dtype='float'), where=n_gt > 0).sum()
 
-        # print(i, pr_list[i], rc_list[i])
-        # print(g, p, intersection, sep="\n")
-        # print(n_gt, n_pred, n_intersection, sep="\n")
-        # print()
-
         if ic_arr is not None:
 
             # Weighted precision, recall
@@ -94,27 +74,6 @@ def compute_metrics(pred, gt, toi, tau_arr, ic_arr=None):
 
             wpr_list[i] = np.divide(wn_intersection, wn_pred, out=np.zeros_like(n_intersection, dtype='float'), where=n_pred > 0).sum()
             wrc_list[i] = np.divide(wn_intersection, wn_gt, out=np.zeros_like(n_intersection, dtype='float'), where=n_gt > 0).sum()
-
-            #############
-            # if i > 0 and wpr_list[i] < wpr_list[i-1]:
-            #     pre_p = solidify_prediction(pred.matrix[:, toi], tau_arr[i-1])
-            #     pre_intersection = np.logical_and(pre_p, g)
-            #     pre_n_pred = pre_p.sum(axis=1)
-            #     pre_n_intersection = pre_intersection.sum(axis=1)
-            #
-            #     pre_wn_pred = (pre_p * ic_arr[toi]).sum(axis=1)
-            #     pre_wn_intersection = (pre_intersection * ic_arr[toi]).sum(axis=1)
-            #
-            #     print(i)
-            #     # print(np.argwhere(np.logical_and(pre_p, np.logical_not(p))).shape)
-            #     print(n_gt.sum())
-            #     print('current', n_intersection.sum(), n_pred.sum(), pr_list[i])
-            #     print('pre', pre_n_intersection.sum(), pre_n_pred.sum(), pr_list[i - 1])
-            #     print(wn_gt.sum())
-            #     print('current', wn_intersection.sum(), wn_pred.sum(), wpr_list[i])
-            #     print('pre', pre_wn_intersection.sum(), pre_wn_pred.sum(), wpr_list[i-1])
-            #     #break
-            ############
 
             # Misinformation, remaining uncertainty
             ru_list[i] = (remaining * ic_arr[toi]).sum(axis=1).sum()
