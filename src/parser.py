@@ -106,41 +106,42 @@ def pred_parser(pred_file, ontologies, gts, prop_mode):
     Parse a prediction file and returns a list of prediction objects, one for each namespace
     """
 
-    ns_dict = {}  # {namespace: term}
-    for ont in ontologies:
-        for term in ont.terms_dict:
-            ns_dict[term] = ont.namespace
-
     # Slow step if the input file is huge, ca. 1 minute for 5GB input on SSD
-    pred_dict = {}
+    ids = {}
+    matrix = {}
+    ns_dict = {}  # {namespace: term}
+    onts = {ont.namespace: ont for ont in ontologies}
+    for ns in gts:
+        matrix[ns] = np.zeros(gts[ns].matrix.shape, dtype='float')
+        ids[ns] = {}
+        for term in onts[ns].terms_dict:
+            ns_dict[term] = ns
+
     with open(pred_file) as f:
         for line in f:
             line = line.strip().split()
             if line and len(line) > 2:
                 p_id, term_id, prob = line[:3]
                 ns = ns_dict.get(term_id)
-                if ns is not None and gts.get(ns) and p_id in gts[ns].ids:
-                    pred_dict.setdefault(ns, {}).setdefault(p_id, []).append((term_id, prob))
+                if ns in gts and p_id in gts[ns].ids:
+                    i = gts[ns].ids[p_id]
+                    j = onts[ns].terms_dict.get(term_id)['index']
+                    ids[ns][p_id] = i
+                    # TODO keep max if the same terms is predicted multiple time with different scores
+                    matrix[ns][i, j] = prob
 
     predictions = []
-    for ont in ontologies:
-        ns = ont.namespace
-        if ns in pred_dict:
-            matrix = np.zeros(gts[ns].matrix.shape, dtype='float')
-            ids = {}
-            for p_id in pred_dict[ns].keys():
-                i = gts[ns].ids[p_id]
-                ids[p_id] = i
-                for term_id, prob in pred_dict[ns][p_id]:
-                    j = ont.terms_dict.get(term_id)['index']
-                    matrix[i, j] = prob
-
+    for ns in ids:
+        if ids[ns]:
             logging.debug("pred matrix {} {} ".format(ns, matrix))
-            propagate(matrix, ont, ont.order, mode=prop_mode)
+            propagate(matrix[ns], onts[ns], onts[ns].order, mode=prop_mode)
             logging.debug("pred matrix {} {} ".format(ns, matrix))
 
-            predictions.append(Prediction(ids, matrix, len(pred_dict[ns]), ns))
-            logging.info("Prediction: {}, {}, proteins {}".format(pred_file, ns, len(pred_dict[ns])))
+            predictions.append(Prediction(ids[ns], matrix[ns], len(ids[ns]), ns))
+            logging.info("Prediction: {}, {}, proteins {}".format(pred_file, ns, len(ids[ns])))
+
+    if not predictions:
+        raise Exception("Empty prediction, check format")
 
     return predictions
 

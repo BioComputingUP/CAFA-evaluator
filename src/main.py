@@ -10,7 +10,8 @@ from parser import obo_parser, gt_parser, pred_parser, ia_parser
 from evaluation import get_leafs_idx, get_roots_idx, evaluate_prediction
 
 # Tau array, used to compute metrics at different score thresholds
-tau_arr = np.arange(0.01, 1, 0.01)
+# tau_arr = np.arange(0.01, 1, 0.01)
+tau_arr = np.arange(0.001, 1, 0.001)
 
 
 if __name__ == '__main__':
@@ -81,6 +82,7 @@ if __name__ == '__main__':
         df_pred = evaluate_prediction(prediction, gt, ontologies, tau_arr, args.norm)
         df_pred['filename'] = file_name.replace(pred_folder, '').replace('/', '_')
         dfs.append(df_pred)
+        logging.info("Prediction: {}, evaluated".format(file_name))
     df = pd.concat(dfs)
 
     # Save the dataframe
