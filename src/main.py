@@ -3,7 +3,7 @@ import logging
 import os
 import pandas as pd
 import numpy as np
-from scipy import stats
+#from scipy import stats
 
 from graph import Graph
 from parser import obo_parser, gt_parser, pred_parser, ia_parser
@@ -88,7 +88,7 @@ if __name__ == '__main__':
     # Save the dataframe
     df = df[df['cov'] > 0].reset_index(drop=True)
     df.set_index(['filename', 'ns', 'tau'], inplace=True)
-    df.to_csv('{}/evaluation_all.tsv'.format(out_folder), float_format="%.3f", sep="\t")
+    df.to_csv('{}/evaluation_all.tsv'.format(out_folder), float_format="%.5f", sep="\t")
 
     # Calculate harmonic mean across namespaces for each evaluation metric
     for metric, cols in [('f', ['rc', 'pr']), ('wf', ['wrc', 'wpr']), ('s', ['ru', 'mi'])]:
@@ -97,7 +97,7 @@ if __name__ == '__main__':
 
         df_best = df.loc[index_best]
         df_best['max_cov'] = df.reset_index('tau').loc[[ele[:-1] for ele in index_best]].groupby(level=['filename', 'ns'])['cov'].max()
-        df_best.to_csv('{}/evaluation_best_{}.tsv'.format(out_folder, metric), float_format="%.3f", sep="\t")
+        df_best.to_csv('{}/evaluation_best_{}.tsv'.format(out_folder, metric), float_format="%.5f", sep="\t")
 
         # TODO if a namespace is not predicted, create a row with all zeros
         # df_hmean = df_best.groupby(level='filename')[cols + ['cov', 'max_cov'] + [metric]].agg(stats.hmean).sort_values(metric, ascending=False if metric in ['f', 'wf'] else True)
