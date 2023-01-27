@@ -10,28 +10,28 @@ from parser import obo_parser, gt_parser, pred_parser, ia_parser
 from evaluation import get_leafs_idx, get_roots_idx, evaluate_prediction
 
 # Tau array, used to compute metrics at different score thresholds
-# tau_arr = np.arange(0.01, 1, 0.01)
-tau_arr = np.arange(0.001, 1, 0.001)
+tau_arr = np.arange(0.01, 1, 0.01)
+# tau_arr = np.arange(0.001, 1, 0.001)
 
 
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser(description='CAFA-evaluator. Calculate precision-recall plots and F-max')
-    parser.add_argument('obo_file', help='Ontology file in OBO format')
-    parser.add_argument('pred_dir', help='Predictions directory. Sub-folders are iterated recursively. '
-                                         'Files in the same sub-folder are merged')
+    parser = argparse.ArgumentParser(description='CAFA-evaluator. Calculate precision-recall curves and F-max / S-min')
+    parser.add_argument('obo_file', help='Ontology file, OBO format')
+    parser.add_argument('pred_dir', help='Predictions directory. Sub-folders are iterated recursively')
     parser.add_argument('gt_file', help='Ground truth file')
     parser.add_argument('-out_dir', default='results',
-                        help='Output directory. Default to \"results\" in the current directory')
-    parser.add_argument('-ia', help='File with information accretion (header: term, information_accretion)')
+                        help='Output directory. By default it creates \"results/\" in the current directory')
+    parser.add_argument('-ia', help='Information accretion file (columns: <term> <information_accretion>)')
     parser.add_argument('-no_orphans', action='store_true', default=False,
-                        help='Consider terms without parents, e.g. the root(s)')
+                        help='Consider terms without parents, e.g. the root(s), in the evaluation')
     parser.add_argument('-norm', choices=['cafa', 'pred', 'gt'], default='cafa',
-                        help='Normalize as in CAFA. Consider predicted targets (pred). '
-                             'Consider all ground truth proteins (gt)')
+                        help='Normalization strategy. i) CAFA strategy (cafa); '
+                             'ii) consider predicted targets (pred); '
+                             'iii) consider ground truth proteins (gt)')
     parser.add_argument('-prop', choices=['max', 'fill'], default='fill',
-                        help='Ancestor propagation strategy. Max - Propagate the max score of the traversed subgraph '
-                             'iteratively. Fill - Fill with max until a different score is assigned')
+                        help='Ancestor propagation strategy. i) Propagate the max score of the traversed subgraph '
+                             'iteratively (max); ii) Propagate with max until a different score is found (fill)')
     args = parser.parse_args()
 
     # Create output folder here in order to store the log file
@@ -88,7 +88,7 @@ if __name__ == '__main__':
     # Save the dataframe
     df = df[df['cov'] > 0].reset_index(drop=True)
     df.set_index(['filename', 'ns', 'tau'], inplace=True)
-    df.to_csv('{}/df_all.tsv'.format(out_folder), sep="\t")
+    df.to_csv('{}/evaluation_all.tsv'.format(out_folder), float_format="%.3f", sep="\t")
 
     # Calculate harmonic mean across namespaces for each evaluation metric
     for metric, cols in [('f', ['rc', 'pr']), ('wf', ['wrc', 'wpr']), ('s', ['ru', 'mi'])]:
@@ -97,7 +97,9 @@ if __name__ == '__main__':
 
         df_best = df.loc[index_best]
         df_best['max_cov'] = df.reset_index('tau').loc[[ele[:-1] for ele in index_best]].groupby(level=['filename', 'ns'])['cov'].max()
+        df_best.to_csv('{}/evaluation_best_{}.tsv'.format(out_folder, metric), float_format="%.3f", sep="\t")
 
-        df_hmean = df_best.groupby(level='filename')[cols + ['cov', 'max_cov'] + [metric]].agg(stats.hmean).sort_values(metric, ascending=False if metric in ['f', 'wf'] else True)
-        df_hmean.to_csv('{}/hmean_{}.tsv'.format(out_folder, metric), float_format="%.3f", sep="\t")
+        # TODO if a namespace is not predicted, create a row with all zeros
+        # df_hmean = df_best.groupby(level='filename')[cols + ['cov', 'max_cov'] + [metric]].agg(stats.hmean).sort_values(metric, ascending=False if metric in ['f', 'wf'] else True)
+        # df_hmean.to_csv('{}/evaluation_hmean_{}.tsv'.format(out_folder, metric), float_format="%.3f", sep="\t")
 
