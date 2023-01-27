@@ -120,7 +120,8 @@ INGA_1.cafa	cellular_component	0.75000	0.05799	0.62162	0.01476	0.02884	0.62162	0
 ...
 ```
 
-**evaluation_best.tsv** - A table containing the best results, best rows from previous file.
+**evaluation_best_< metric >.tsv** - A table containing the best results, best rows from previous file. The metric indicates
+based on what metric best rows are selected
 ```
 filename	ns	tau	cov	pr	rc	f	wpr	wrc	wf	mi	ru	s	max_cov
 INGA_1.cafa	biological_process	0.50000	0.91253	0.37096	0.34422	0.35709	0.32304	0.28531	0.30300	83.82684	95.50003	127.07161	1.00000
