@@ -1,13 +1,13 @@
 from graph import Prediction, GroundTruth, propagate
 import numpy as np
 import logging
-import xml.etree.ElementTree as ET
+# import xml.etree.ElementTree as ET
 
 
 def obo_parser(obo_file, valid_rel=("is_a", "part_of")):
     """
     Parse a OBO file and returns a list of ontologies, one for each namespace.
-    Obsolete terms are excluded as well as external namespaces
+    Obsolete terms are excluded as well as external namespaces.
     """
     term_dict = {}
     term_id = None
@@ -69,8 +69,7 @@ def obo_parser(obo_file, valid_rel=("is_a", "part_of")):
 
 def gt_parser(gt_file, ontologies):
     """
-    Parse ground truth file
-    Discard terms not included in the ontology
+    Parse ground truth file. Discard terms not included in the ontology.
     """
     gt_dict = {}
     with open(gt_file) as f:
@@ -103,10 +102,11 @@ def gt_parser(gt_file, ontologies):
 
 def pred_parser(pred_file, ontologies, gts, prop_mode):
     """
-    Parse a prediction file and returns a list of prediction objects, one for each namespace
-    """
+    Parse a prediction file and returns a list of prediction objects, one for each namespace.
+    If a predicted is predicted multiple times for the same target, it stores the max.
+    This is the slow step if the input file is huge, ca. 1 minute for 5GB input on SSD disk.
 
-    # Slow step if the input file is huge, ca. 1 minute for 5GB input on SSD
+    """
     ids = {}
     matrix = {}
     ns_dict = {}  # {namespace: term}
@@ -127,8 +127,7 @@ def pred_parser(pred_file, ontologies, gts, prop_mode):
                     i = gts[ns].ids[p_id]
                     j = onts[ns].terms_dict.get(term_id)['index']
                     ids[ns][p_id] = i
-                    # TODO keep max if the same terms is predicted multiple time with different scores
-                    matrix[ns][i, j] = prob
+                    matrix[ns][i, j] = max(matrix[ns][i, j], float(prob))
 
     predictions = []
     for ns in ids:
@@ -156,26 +155,26 @@ def ia_parser(file):
     return ia_dict
 
 
-def parse_sprot_xml(input_file, output_file):
-    """
-    Parse the Swiss-Prot XML annotation file
-    and write a TSV file with:
-    - accession
-    - GO term
-    - evidence code (ECO)
-    """
-    namespaces = {'uniprot': 'http://uniprot.org/uniprot'}
-    nsl = len(namespaces['uniprot']) + 2
-    with open(input_file) as f:
-        with open(output_file, 'w') as fout:
-            for event, elem in ET.iterparse(f, events=('start', 'end')):
-                if event == 'end':
-                    if elem.tag[nsl:] == 'entry':
-                        acc = elem.find('uniprot:accession', namespaces).text
-                        for el in elem.iterfind('uniprot:dbReference', namespaces):
-                            if el.attrib['type'] == 'GO':
-                                for at in el.iter():
-                                    if at.attrib['type'] == 'evidence':
-                                        fout.write('{}\t{}\t{}\n'.format(acc, el.attrib['id'], at.attrib['value']))
-                        elem.clear()
-    return
+# def parse_sprot_xml(input_file, output_file):
+#     """
+#     Parse the Swiss-Prot XML annotation file
+#     and write a TSV file with:
+#     - accession
+#     - GO term
+#     - evidence code (ECO)
+#     """
+#     namespaces = {'uniprot': 'http://uniprot.org/uniprot'}
+#     nsl = len(namespaces['uniprot']) + 2
+#     with open(input_file) as f:
+#         with open(output_file, 'w') as fout:
+#             for event, elem in ET.iterparse(f, events=('start', 'end')):
+#                 if event == 'end':
+#                     if elem.tag[nsl:] == 'entry':
+#                         acc = elem.find('uniprot:accession', namespaces).text
+#                         for el in elem.iterfind('uniprot:dbReference', namespaces):
+#                             if el.attrib['type'] == 'GO':
+#                                 for at in el.iter():
+#                                     if at.attrib['type'] == 'evidence':
+#                                         fout.write('{}\t{}\t{}\n'.format(acc, el.attrib['id'], at.attrib['value']))
+#                         elem.clear()
+#     return

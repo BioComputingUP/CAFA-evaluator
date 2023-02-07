@@ -3,23 +3,20 @@ import logging
 import os
 import pandas as pd
 import numpy as np
-#from scipy import stats
 
 from graph import Graph
 from parser import obo_parser, gt_parser, pred_parser, ia_parser
 from evaluation import get_leafs_idx, get_roots_idx, evaluate_prediction
 
-# Tau array, used to compute metrics at different score thresholds
-tau_arr = np.arange(0.01, 1, 0.01)
-# tau_arr = np.arange(0.001, 1, 0.001)
-
 
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='CAFA-evaluator. Calculate precision-recall curves and F-max / S-min')
+
     parser.add_argument('obo_file', help='Ontology file, OBO format')
     parser.add_argument('pred_dir', help='Predictions directory. Sub-folders are iterated recursively')
     parser.add_argument('gt_file', help='Ground truth file')
+
     parser.add_argument('-out_dir', default='results',
                         help='Output directory. By default it creates \"results/\" in the current directory')
     parser.add_argument('-ia', help='Information accretion file (columns: <term> <information_accretion>)')
@@ -32,6 +29,12 @@ if __name__ == '__main__':
     parser.add_argument('-prop', choices=['max', 'fill'], default='fill',
                         help='Ancestor propagation strategy. i) Propagate the max score of the traversed subgraph '
                              'iteratively (max); ii) Propagate with max until a different score is found (fill)')
+    parser.add_argument('-th_step', type=float, default=0.01,
+                        help='Threshold step size in the range [0, 1]. A smaller step, means more calculation.')
+    parser.add_argument('-threads', type=int, default=4,
+                        help='Parallel threads. 0 means use all available CPU threads. '
+                             'Do not use multithread if you are short in memory')
+
     args = parser.parse_args()
 
     # Create output folder here in order to store the log file
@@ -75,11 +78,14 @@ if __name__ == '__main__':
     # Parse ground truth file
     gt = gt_parser(args.gt_file, ontologies)
 
+    # Tau array, used to compute metrics at different score thresholds
+    tau_arr = np.arange(0.01, 1, args.th_step)
+
     # Parse prediction files and perform evaluation
     dfs = []
     for file_name in pred_files:
         prediction = pred_parser(file_name, ontologies, gt, args.prop)
-        df_pred = evaluate_prediction(prediction, gt, ontologies, tau_arr, args.norm)
+        df_pred = evaluate_prediction(prediction, gt, ontologies, tau_arr, args.norm, args.threads)
         df_pred['filename'] = file_name.replace(pred_folder, '').replace('/', '_')
         dfs.append(df_pred)
         logging.info("Prediction: {}, evaluated".format(file_name))
@@ -88,7 +94,9 @@ if __name__ == '__main__':
     # Save the dataframe
     df = df[df['cov'] > 0].reset_index(drop=True)
     df.set_index(['filename', 'ns', 'tau'], inplace=True)
-    df.to_csv('{}/evaluation_all.tsv'.format(out_folder), float_format="%.5f", sep="\t")
+    df.to_csv('{}/evaluation_all.tsv'.format(out_folder),
+              columns=["cov", "pr", "rc", "f", "wpr", "wrc", "wf", "mi", "ru", "s"],
+              float_format="%.5f", sep="\t")
 
     # Calculate harmonic mean across namespaces for each evaluation metric
     for metric, cols in [('f', ['rc', 'pr']), ('wf', ['wrc', 'wpr']), ('s', ['ru', 'mi'])]:
@@ -97,9 +105,6 @@ if __name__ == '__main__':
 
         df_best = df.loc[index_best]
         df_best['max_cov'] = df.reset_index('tau').loc[[ele[:-1] for ele in index_best]].groupby(level=['filename', 'ns'])['cov'].max()
-        df_best.to_csv('{}/evaluation_best_{}.tsv'.format(out_folder, metric), float_format="%.5f", sep="\t")
-
-        # TODO if a namespace is not predicted, create a row with all zeros
-        # df_hmean = df_best.groupby(level='filename')[cols + ['cov', 'max_cov'] + [metric]].agg(stats.hmean).sort_values(metric, ascending=False if metric in ['f', 'wf'] else True)
-        # df_hmean.to_csv('{}/evaluation_hmean_{}.tsv'.format(out_folder, metric), float_format="%.3f", sep="\t")
-
+        df_best.to_csv('{}/evaluation_best_{}.tsv'.format(out_folder, metric),
+                       columns=["cov", "pr", "rc", "f", "wpr", "wrc", "wf", "mi", "ru", "s", "max_cov"],
+                       float_format="%.5f", sep="\t")
