@@ -4,37 +4,51 @@ This program calculates F-score, weighted F-score and S-score as well as precisi
 remaining uncertainty–misinformation curves as described in the 
 [Critical Assessment of protein Function Annotation (CAFA)](https://www.biofunctionprediction.org/cafa/).
 
-CAFA-evaluator is generic and works with any type of ontology. It is inspired to the original Matlab code 
-used in CAFA2 assessment and available at [https://github.com/yuxjiang/CAFA2](https://github.com/yuxjiang/CAFA2)
+CAFA-evaluator is generic and works with any type of ontology. Its implementation is inspired to the 
+original Matlab code used in CAFA2 assessment and available at 
+[https://github.com/yuxjiang/CAFA2](https://github.com/yuxjiang/CAFA2)
 
-In order to replicate CAFA results, you can simply adapt the input files. 
-- *No/partial knowledge* can be reproduced by filtering/splitting the **ground truth file** 
-- In order to exclude specific terms from the analyses, 
-e.g. generic "binding" terms, you can directly modify the input **ontology file** 
+## Installation
 
+The software does not require any installation. Simply download the repository and run the **main.py** script. 
+The following packages are required:
+
+- numpy
+- pandas
+- matplotlib (only for generating the plots)
 
 ## Algorithm information 
 
+#### Notes
+* The word `aspect`, `namespeace` and `sub-ontology` are used interchangeably in the following documentation.
+* In order to replicate CAFA results, you can simply adapt the input files. 
+  - *No/partial knowledge* can be reproduced by filtering/splitting the **ground truth file** 
+  - In order to exclude specific terms from the analyses, 
+e.g. generic "binding" terms, you can directly modify the input **ontology file** 
+
 #### Input filtering
 
-Prediction files are filtered considering only those targets included in the ground truth and those terms included in 
-the ontology file. If the ground truth contains only annotations from one aspect (e.g. molecular function), 
-the evaluation is provided only for that aspect
+Prediction files are filtered considering only those targets included in the ground truth and 
+only those terms included in the ontology file. 
+If the ground truth contains only annotations from one aspect (e.g. "molecular function"), 
+the evaluation is provided only for that aspect.
+There is a parameter to control the maximum number of terms to be considered for each target.
 
-The ontology is processed with an internal parser. Only the OBO format is allowed. The following is also 
+The ontology is processed with an internal parser that accepts only the OBO format. 
+The following rules are applied: 
   - Obsolete terms are always excluded
   - Only "is_a" and "part_of" relationships are considered
   - Cross-aspect or cross-ontology relationships are always discarded
   - Alternative term IDs are automatically mapped to the main ID
 
-When information accretion is provided, terms which are not available in the file are removed from the ontology
-
+When information accretion is provided, terms which are not available in the accretion file are 
+removed from the ontology.
 
 #### Terms propagation
 
-Both the predictions and the ground truth annotations are always propagated up to the ontology root(s). By
-default, prediction scores are propagated without overwriting the scores assigned to the parents. Alternatively,
-an option let you to propagate considering always the max
+Both the predictions and the ground truth annotations are always propagated up to the ontology root(s). 
+Two strategies are available: i) prediction scores are propagated without overwriting the scores 
+assigned to the parents; ii) scores are propagated considering always the max.
 
 #### Memory usage
 
@@ -46,11 +60,6 @@ for each aspect in the ground truth file.
 is stored for each prediction file. Prediction files are processed one by one and the matrix gets reassigned.
 
 
-#### Required packages
-
-- numpy
-- pandas
-- matplotlib (only for the plots)
 
 ## Assessment
 

@@ -100,7 +100,7 @@ def gt_parser(gt_file, ontologies):
     return gts
 
 
-def pred_parser(pred_file, ontologies, gts, prop_mode):
+def pred_parser(pred_file, ontologies, gts, prop_mode, max_terms=None):
     """
     Parse a prediction file and returns a list of prediction objects, one for each namespace.
     If a predicted is predicted multiple times for the same target, it stores the max.
@@ -125,9 +125,10 @@ def pred_parser(pred_file, ontologies, gts, prop_mode):
                 ns = ns_dict.get(term_id)
                 if ns in gts and p_id in gts[ns].ids:
                     i = gts[ns].ids[p_id]
-                    j = onts[ns].terms_dict.get(term_id)['index']
-                    ids[ns][p_id] = i
-                    matrix[ns][i, j] = max(matrix[ns][i, j], float(prob))
+                    if max_terms is None or np.count_nonzero(matrix[ns][i]) <= max_terms:
+                        j = onts[ns].terms_dict.get(term_id)['index']
+                        ids[ns][p_id] = i
+                        matrix[ns][i, j] = max(matrix[ns][i, j], float(prob))
 
     predictions = []
     for ns in ids:

@@ -26,11 +26,13 @@ if __name__ == '__main__':
                         help='Normalization strategy. i) CAFA strategy (cafa); '
                              'ii) consider predicted targets (pred); '
                              'iii) consider ground truth proteins (gt)')
-    parser.add_argument('-prop', choices=['max', 'fill'], default='fill',
+    parser.add_argument('-prop', choices=['max', 'fill'], default='max',
                         help='Ancestor propagation strategy. i) Propagate the max score of the traversed subgraph '
                              'iteratively (max); ii) Propagate with max until a different score is found (fill)')
     parser.add_argument('-th_step', type=float, default=0.01,
                         help='Threshold step size in the range [0, 1]. A smaller step, means more calculation.')
+    parser.add_argument('-max_terms', type=int, default=None,
+                        help='Number of terms for protein and namespace to consider in the evaluation.')
     parser.add_argument('-threads', type=int, default=4,
                         help='Parallel threads. 0 means use all available CPU threads. '
                              'Do not use multithread if you are short in memory')
@@ -84,7 +86,7 @@ if __name__ == '__main__':
     # Parse prediction files and perform evaluation
     dfs = []
     for file_name in pred_files:
-        prediction = pred_parser(file_name, ontologies, gt, args.prop)
+        prediction = pred_parser(file_name, ontologies, gt, args.prop, args.max_terms)
         df_pred = evaluate_prediction(prediction, gt, ontologies, tau_arr, args.norm, args.threads)
         df_pred['filename'] = file_name.replace(pred_folder, '').replace('/', '_')
         dfs.append(df_pred)
