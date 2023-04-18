@@ -8,6 +8,14 @@ CAFA-evaluator is generic and works with any type of ontology. Its implementatio
 original Matlab code used in CAFA2 assessment and available at 
 [https://github.com/yuxjiang/CAFA2](https://github.com/yuxjiang/CAFA2)
 
+#### CAFA5 challenge
+In the Kaggle CAFA5 challenge the software is executed with the following command:
+
+    python3 main.py go-basic.obo predition_dir/ test_terms.tsv -out_dir results/ -ia IA.txt -prop fill -norm cafa -th_step 0.001 -max_terms 500
+
+In the example above the method prediction file should be inside the `prediction_dir/` folder and 
+evaluated against the `test_terms.tsv` file containing the ground truth (not available to participants).
+
 ## Installation
 
 The software does not require any installation. Simply download the repository and run the **main.py** script. 
@@ -32,7 +40,9 @@ Prediction files are filtered considering only those targets included in the gro
 only those terms included in the ontology file. 
 If the ground truth contains only annotations from one aspect (e.g. "molecular function"), 
 the evaluation is provided only for that aspect.
-There is a parameter to control the maximum number of terms to be considered for each target.
+The `-max_terms` parameter determines the maximum number of terms that will be considered for each target. 
+Parsing stops when the target limit for every ontology is reached. The score is not checked, 
+meaning that terms are not sorted before the check, and the check is performed before propagation.
 
 The ontology is processed with an internal parser that accepts only the OBO format. 
 The following rules are applied: 
@@ -66,7 +76,7 @@ is stored for each prediction file. Prediction files are processed one by one an
 The assessment is provided by running the **main.py** script. While the plots are generated running 
 the **plot.ipynb** Jupyter Notebook. To run the assessment:
 
-    python3 main.py ontology.obo predition_dir/ grounf_truth_dir/ground_truth.txt -out_dir results/ -ia ia.txt
+    python3 main.py ontology.obo predition_dir/ ground_truth_dir/ground_truth.txt -out_dir results/ -ia ia.txt
     
 **Mandatory positional arguments**
 * *Ontology file* - Ontology in OBO format
