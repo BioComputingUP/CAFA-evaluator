@@ -4,17 +4,17 @@ This program calculates F-score, weighted F-score and S-score as well as precisi
 remaining uncertainty–misinformation curves as described in the 
 [Critical Assessment of protein Function Annotation (CAFA)](https://www.biofunctionprediction.org/cafa/).
 
-CAFA-evaluator is generic and works with any type of ontology. Its implementation is inspired to the 
+CAFA-evaluator is generic and works with any type of ontology. Its implementation is inspired by the 
 original Matlab code used in CAFA2 assessment and available at 
 [https://github.com/yuxjiang/CAFA2](https://github.com/yuxjiang/CAFA2)
 
 #### CAFA5 challenge
 In the Kaggle CAFA5 challenge the software is executed with the following command:
 
-    python3 main.py go-basic.obo predition_dir/ test_terms.tsv -out_dir results/ -ia IA.txt -prop fill -norm cafa -th_step 0.001 -max_terms 500
+    python3 main.py go-basic.obo prediction_dir/ test_terms.tsv -out_dir results/ -ia IA.txt -prop fill -norm cafa -th_step 0.001 -max_terms 500
 
 In the example above the method prediction file should be inside the `prediction_dir/` folder and 
-evaluated against the `test_terms.tsv` file containing the ground truth (not available to participants).
+evaluated against the `test_terms.tsv` file containing the ground truth (not available to competition participants).
 
 ## Installation
 
@@ -28,7 +28,7 @@ The following packages are required:
 ## Algorithm information 
 
 #### Notes
-* The word `aspect`, `namespeace` and `sub-ontology` are used interchangeably in the following documentation.
+* The word `aspect`, `namespace` and `sub-ontology` are used interchangeably in the following documentation.
 * In order to replicate CAFA results, you can simply adapt the input files. 
   - *No/partial knowledge* can be reproduced by filtering/splitting the **ground truth file** 
   - In order to exclude specific terms from the analyses, 
@@ -164,7 +164,7 @@ dataframe **evaluation_all.tsv** (see above).
 
 In order to generate the figures you need to manually modify the first cell of the notebook which 
 contains information about the input path and a few parameters. Parameters include: 
-* the metric (F-score, wighted F-score, S measure)
+* the metric (F-score, weighted F-score, S measure)
 * the path to the input dataframe (*evaluation_all.tsv*)
 * the output folder
 * an optional file (*names.tsv*) including information about methods aliases and groups. If provided, the results
