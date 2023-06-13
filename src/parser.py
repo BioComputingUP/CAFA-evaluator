@@ -141,7 +141,8 @@ def pred_parser(pred_file, ontologies, gts, prop_mode, max_terms=None):
             logging.info("Prediction: {}, {}, proteins {}".format(pred_file, ns, len(ids[ns])))
 
     if not predictions:
-        raise Exception("Empty prediction, check format")
+        # raise Exception("Empty prediction, check format")
+        logging.warning("Empty prediction! Check format or overlap with ground truth")
 
     return predictions
 

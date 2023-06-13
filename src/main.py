@@ -87,26 +87,33 @@ if __name__ == '__main__':
     dfs = []
     for file_name in pred_files:
         prediction = pred_parser(file_name, ontologies, gt, args.prop, args.max_terms)
-        df_pred = evaluate_prediction(prediction, gt, ontologies, tau_arr, args.norm, args.threads)
-        df_pred['filename'] = file_name.replace(pred_folder, '').replace('/', '_')
-        dfs.append(df_pred)
-        logging.info("Prediction: {}, evaluated".format(file_name))
-    df = pd.concat(dfs)
+        if prediction:
+            df_pred = evaluate_prediction(prediction, gt, ontologies, tau_arr, args.norm, args.threads)
+            df_pred['filename'] = file_name.replace(pred_folder, '').replace('/', '_')
+            dfs.append(df_pred)
+            logging.info("Prediction: {}, evaluated".format(file_name))
+        else:
+            logging.warning("Prediction: {}, not evaluated".format(file_name))
 
-    # Save the dataframe
-    df = df[df['cov'] > 0].reset_index(drop=True)
-    df.set_index(['filename', 'ns', 'tau'], inplace=True)
-    df.to_csv('{}/evaluation_all.tsv'.format(out_folder),
-              columns=["cov", "pr", "rc", "f", "wpr", "wrc", "wf", "mi", "ru", "s"],
-              float_format="%.5f", sep="\t")
+    if dfs:
+        df = pd.concat(dfs)
 
-    # Calculate harmonic mean across namespaces for each evaluation metric
-    for metric, cols in [('f', ['rc', 'pr']), ('wf', ['wrc', 'wpr']), ('s', ['ru', 'mi'])]:
+        # Save the dataframe
+        df = df[df['cov'] > 0].reset_index(drop=True)
+        df.set_index(['filename', 'ns', 'tau'], inplace=True)
+        df.to_csv('{}/evaluation_all.tsv'.format(out_folder),
+                  columns=["cov", "pr", "rc", "f", "wpr", "wrc", "wf", "mi", "ru", "s"],
+                  float_format="%.5f", sep="\t")
 
-        index_best = df.groupby(level=['filename', 'ns'])[metric].idxmax() if metric in ['f', 'wf'] else df.groupby(['filename', 'ns'])[metric].idxmin()
+        # Calculate harmonic mean across namespaces for each evaluation metric
+        for metric, cols in [('f', ['rc', 'pr']), ('wf', ['wrc', 'wpr']), ('s', ['ru', 'mi'])]:
 
-        df_best = df.loc[index_best]
-        df_best['max_cov'] = df.reset_index('tau').loc[[ele[:-1] for ele in index_best]].groupby(level=['filename', 'ns'])['cov'].max()
-        df_best.to_csv('{}/evaluation_best_{}.tsv'.format(out_folder, metric),
-                       columns=["cov", "pr", "rc", "f", "wpr", "wrc", "wf", "mi", "ru", "s", "max_cov"],
-                       float_format="%.5f", sep="\t")
+            index_best = df.groupby(level=['filename', 'ns'])[metric].idxmax() if metric in ['f', 'wf'] else df.groupby(['filename', 'ns'])[metric].idxmin()
+
+            df_best = df.loc[index_best]
+            df_best['max_cov'] = df.reset_index('tau').loc[[ele[:-1] for ele in index_best]].groupby(level=['filename', 'ns'])['cov'].max()
+            df_best.to_csv('{}/evaluation_best_{}.tsv'.format(out_folder, metric),
+                           columns=["cov", "pr", "rc", "f", "wpr", "wrc", "wf", "mi", "ru", "s", "max_cov"],
+                           float_format="%.5f", sep="\t")
+    else:
+        logging.info("No predictions evaluated")
