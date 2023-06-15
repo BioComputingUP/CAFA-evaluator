@@ -111,7 +111,7 @@ def evaluate_prediction(prediction, gt, ontologies, tau_arr, normalization='cafa
         metrics = compute_metrics(p, gt[ns], ont.toi, tau_arr, ont.ia, n_cpu)
 
         for column in ["pr", "rc", "wpr", "wrc", "ru", "mi"]:
-            if normalization == 'gt' or (column in ["rc", "wrc"] and normalization == 'cafa'):
+            if normalization == 'gt' or (column in ["rc", "wrc", "ru", "mi"] and normalization == 'cafa'):
                 metrics[column] = np.divide(metrics[column], ne, out=np.zeros_like(metrics[column], dtype='float'), where=ne > 0)
             else:
                 metrics[column] = np.divide(metrics[column], metrics["cov"], out=np.zeros_like(metrics[column], dtype='float'), where=metrics["cov"] > 0)
