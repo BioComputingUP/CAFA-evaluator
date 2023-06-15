@@ -81,7 +81,7 @@ if __name__ == '__main__':
     gt = gt_parser(args.gt_file, ontologies)
 
     # Tau array, used to compute metrics at different score thresholds
-    tau_arr = np.arange(0.01, 1, args.th_step)
+    tau_arr = np.arange(args.th_step, 1, args.th_step)
 
     # Parse prediction files and perform evaluation
     dfs = []
@@ -101,19 +101,21 @@ if __name__ == '__main__':
         # Save the dataframe
         df = df[df['cov'] > 0].reset_index(drop=True)
         df.set_index(['filename', 'ns', 'tau'], inplace=True)
-        df.to_csv('{}/evaluation_all.tsv'.format(out_folder),
-                  columns=["cov", "pr", "rc", "f", "wpr", "wrc", "wf", "mi", "ru", "s"],
-                  float_format="%.5f", sep="\t")
+
+        if args.ia is not None:
+            columns = ["cov", "pr", "rc", "f", "wcov", "wpr", "wrc", "wf", "mi", "ru", "s"]
+        else:
+            columns = ["cov", "pr", "rc", "f"]
+        df.to_csv('{}/evaluation_all.tsv'.format(out_folder), columns=columns, float_format="%.5f", sep="\t")
 
         # Calculate harmonic mean across namespaces for each evaluation metric
         for metric, cols in [('f', ['rc', 'pr']), ('wf', ['wrc', 'wpr']), ('s', ['ru', 'mi'])]:
+            if metric in columns:
+                index_best = df.groupby(level=['filename', 'ns'])[metric].idxmax() if metric in ['f', 'wf'] else df.groupby(['filename', 'ns'])[metric].idxmin()
 
-            index_best = df.groupby(level=['filename', 'ns'])[metric].idxmax() if metric in ['f', 'wf'] else df.groupby(['filename', 'ns'])[metric].idxmin()
-
-            df_best = df.loc[index_best]
-            df_best['max_cov'] = df.reset_index('tau').loc[[ele[:-1] for ele in index_best]].groupby(level=['filename', 'ns'])['cov'].max()
-            df_best.to_csv('{}/evaluation_best_{}.tsv'.format(out_folder, metric),
-                           columns=["cov", "pr", "rc", "f", "wpr", "wrc", "wf", "mi", "ru", "s", "max_cov"],
-                           float_format="%.5f", sep="\t")
+                df_best = df.loc[index_best]
+                df_best['max_cov'] = df.reset_index('tau').loc[[ele[:-1] for ele in index_best]].groupby(level=['filename', 'ns'])['cov'].max()
+                df_best.to_csv('{}/evaluation_best_{}.tsv'.format(out_folder, metric),
+                               columns=columns + ["max_cov"], float_format="%.5f", sep="\t")
     else:
         logging.info("No predictions evaluated")

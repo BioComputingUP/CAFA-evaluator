@@ -21,6 +21,7 @@ class Graph:
         self.idxs = None  # Number of terms
         self.order = None
         self.toi = None
+        self.toi_ia = None
         self.ia = None
 
         rel_list = []
@@ -110,7 +111,7 @@ class Graph:
                 logging.debug('Missing IA for term: {}'.format(term_id))
         # Convert inf to zero
         np.nan_to_num(self.ia, copy=False, nan=0, posinf=0, neginf=0)
-        self.toi = np.nonzero(self.ia > 0)[0]
+        self.toi_ia = np.nonzero(self.ia > 0)[0]
 
 
 class Prediction:
