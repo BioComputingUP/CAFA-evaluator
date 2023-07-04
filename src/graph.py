@@ -154,14 +154,16 @@ def propagate(matrix, ont, order, mode='max'):
         # Get direct children
         children = np.where(ont.dag[:, i] != 0)[0]
         if children.size > 0:
+            # Add current terms to children
             cols = np.concatenate((children, [i]))
             if mode == 'max':
                 matrix[:, i] = matrix[:, cols].max(axis=1)
             elif mode == 'fill':
+                # Select only rows where the current term is 0
                 rows = np.where(matrix[:, i] == 0)[0]
                 if rows.size:
                     idx = np.ix_(rows, cols)
-                    matrix[rows, i] = matrix[idx].max(axis=1)[0]
+                    matrix[rows, i] = matrix[idx].max(axis=1)
     return
 
 
