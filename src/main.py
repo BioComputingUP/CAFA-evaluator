@@ -30,7 +30,7 @@ if __name__ == '__main__':
                         help='Ancestor propagation strategy. i) Propagate the max score of the traversed subgraph '
                              'iteratively (max); ii) Propagate with max until a different score is found (fill)')
     parser.add_argument('-th_step', type=float, default=0.01,
-                        help='Threshold step size in the range [0, 1]. A smaller step, means more calculation.')
+                        help='Threshold step size in the range [0, 1). A smaller step, means more calculation.')
     parser.add_argument('-max_terms', type=int, default=None,
                         help='Number of terms for protein and namespace to consider in the evaluation.')
     parser.add_argument('-threads', type=int, default=4,
