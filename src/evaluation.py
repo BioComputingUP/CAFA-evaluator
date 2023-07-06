@@ -141,7 +141,8 @@ def evaluate_prediction(prediction, gt, ontologies, tau_arr, normalization='cafa
                     metrics[column] = np.divide(metrics[column], ne,
                                                 out=np.zeros_like(metrics[column], dtype='float'), where=ne > 0)
                 else:
-                    if column == "pr":
+                    # Normalize by pred (cov)
+                    if column in ["pr", "rc"]:
                         # Normalize by cov
                         metrics[column] = np.divide(metrics[column], metrics["cov"],
                                                     out=np.zeros_like(metrics[column], dtype='float'), where=metrics["cov"] > 0)
