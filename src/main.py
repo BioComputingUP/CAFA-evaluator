@@ -42,7 +42,7 @@ if __name__ == '__main__':
     # Create output folder here in order to store the log file
     out_folder = os.path.normpath(args.out_dir) + "/"
     if not os.path.isdir(out_folder):
-        os.mkdirs(out_folder)
+        os.makedirs(out_folder)
 
     # Set the logger
     logFormatter = logging.Formatter("%(asctime)s [%(levelname)-5.5s] %(message)s")
