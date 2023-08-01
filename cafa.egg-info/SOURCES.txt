@@ -1,0 +1,14 @@
+LICENCE.md
+README.md
+setup.py
+cafa/__init__.py
+cafa/evaluation.py
+cafa/graph.py
+cafa/main.py
+cafa/parser.py
+cafa.egg-info/PKG-INFO
+cafa.egg-info/SOURCES.txt
+cafa.egg-info/dependency_links.txt
+cafa.egg-info/entry_points.txt
+cafa.egg-info/requires.txt
+cafa.egg-info/top_level.txt
