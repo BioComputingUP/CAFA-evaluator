@@ -1,0 +1,144 @@
+format-version: 1.2
+default-namespace: idp_ontology
+ontology: IDPO
+
+
+[Term]
+id: IDPO:00000
+name: disorder function
+namespace: disorder_function
+def: "The function of an IDP/IDR. Includes both active functions, i.e. performed on other proteins, and self-functions."
+
+[Term]
+id: IDPO:00501
+name: entropic chain
+namespace: disorder_function
+def: "Functions directly associated with the disordered state of proteins that stem from their ability to shift between conformational states without becoming structured. Includes entropic bristles, clocks and springs."
+is_a: IDPO:00000
+
+[Term]
+id: IDPO:00502
+name: flexible linker/spacer
+namespace: disorder_function
+def: "Unstructured region connecting, providing separation and permitting movement between adjacent functional regions, e.g. structured domains or disordered motifs."
+is_a: IDPO:00501
+
+[Term]
+id: IDPO:00503
+name: flexible N-terminal tail
+namespace: disorder_function
+def: "Intrinsically disordered region localized at the N-terminus of a protein."
+is_a: IDPO:00501
+
+[Term]
+id: IDPO:00504
+name: flexible C-terminal tail
+namespace: disorder_function
+def: "Intrinsically disordered region localized at the C-terminus of a protein."
+is_a: IDPO:00501
+
+[Term]
+id: IDPO:00505
+name: self-regulatory activity
+namespace: disorder_function
+def: "Protein interaction in cis that auto-regulates the protein function or its assembly."
+is_a: IDPO:00000
+
+[Term]
+id: IDPO:00506
+name: self-inhibition
+namespace: disorder_function
+def: "Protein interaction in cis that auto-inhibits the protein function."
+is_a: IDPO:00505
+
+[Term]
+id: IDPO:00507
+name: self-activation
+namespace: disorder_function
+def: "Protein interaction in cis that auto-activates the protein function."
+is_a: IDPO:00505
+
+[Term]
+id: IDPO:00508
+name: self-assembly
+namespace: disorder_function
+def: "Protein interaction in cis required for dimerization or oligomerization of a protein."
+is_a: IDPO:00505
+
+[Term]
+id: IDPO:00024
+name: molecular recognition display site
+namespace: disorder_function
+def: "Targeting post-translational modification."
+is_a: IDPO:00000
+
+[Term]
+id: IDPO:00025
+name: phosphorylation display site
+namespace: disorder_function
+def: "Guides the addition of a phosphate to the protein."
+is_a: IDPO:00024
+
+[Term]
+id: IDPO:00026
+name: acetylation display site
+namespace: disorder_function
+def: "Guides the addition of an acetyl group to the protein."
+is_a: IDPO:00024
+
+[Term]
+id: IDPO:00027
+name: methylation display site
+namespace: disorder_function
+def: "Guides the addition of a methyl group to the protein."
+is_a: IDPO:00024
+
+[Term]
+id: IDPO:00028
+name: glycosylation display site
+namespace: disorder_function
+def: "Guides the addition of a sugar, such as a glycan, during chemical modification of the protein."
+is_a: IDPO:00024
+
+[Term]
+id: IDPO:00029
+name: ubiquitination display site
+namespace: disorder_function
+def: "Guides the addition of a ubiquitin moiety for regulating the function and/or degradation of the protein."
+is_a: IDPO:00024
+
+[Term]
+id: IDPO:00030
+name: fatty acylation display site
+namespace: disorder_function
+def: "Guides the addition of a fatty acyl group during chemical modification of the protein."
+is_a: IDPO:00024
+
+[Term]
+id: IDPO:00031
+name: myristoylation display site
+namespace: disorder_function
+def: "Guides the addition of a myristoyl group during chemical modification of the protein."
+is_a: IDPO:00024
+
+[Term]
+id: IDPO:00032
+name: palmitoylation display site
+namespace: disorder_function
+def: "Guides the addition of a palmitoyl group during chemical modification of the protein."
+is_a: IDPO:00024
+
+[Term]
+id: IDPO:00033
+name: limited proteolysis display site
+namespace: disorder_function
+def: "Guides the regulatory cleavage of the polypeptide chain."
+is_a: IDPO:00024
+
+[Term]
+id: IDPO:00034
+name: ADP-ribosylation display site
+namespace: disorder_function
+def: "Guides the addition of ADP-ribose moietie(s) to a protein, in cell signaling, DNA repair, gene regulation and apoptosis."
+is_a: IDPO:00024
+

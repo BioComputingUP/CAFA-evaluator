@@ -1,6 +1,7 @@
 import numpy as np
 import copy
 import logging
+logging.getLogger(__name__).addHandler(logging.NullHandler())
 
 
 class Graph:
@@ -61,6 +62,10 @@ class Graph:
         if ia_dict is not None:
             self.set_ia(ia_dict)
 
+        logging.info("Ontology: {}, roots {}, leaves {}".format(self.namespace,
+                                                                len(np.where(self.dag.sum(axis=1) == 0)[0]),
+                                                                len(np.where(self.dag.sum(axis=0) == 0)[0])))
+
         return
 
     def top_sort(self):
@@ -118,11 +123,9 @@ class Prediction:
     """
     The score matrix contains the scores given by the predictor for every node of the ontology
     """
-    def __init__(self, ids, matrix, idx, namespace=None):
+    def __init__(self, ids, matrix, namespace=None):
         self.ids = ids
         self.matrix = matrix  # scores
-        self.next_idx = idx
-        # self.n_pred_seq = idx + 1
         self.namespace = namespace
 
     def __str__(self):

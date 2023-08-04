@@ -1,17 +1,10 @@
+import os
 import numpy as np
-import logging
 import pandas as pd
 import multiprocessing as mp
-
-
-# Computes the root terms in the dag
-def get_roots_idx(dag):
-    return np.where(dag.sum(axis=1) == 0)[0]
-
-
-# Computes the leaf terms in the dag
-def get_leafs_idx(dag):
-    return np.where(dag.sum(axis=0) == 0)[0]
+from cafaeval.parser import obo_parser, gt_parser, pred_parser
+import logging
+logging.getLogger(__name__).addHandler(logging.NullHandler())
 
 
 # Return a mask for all the predictions (matrix) >= tau
@@ -124,15 +117,13 @@ def compute_metrics(pred, gt, tau_arr, toi, toi_ia, ic_arr, n_cpu=0):
 def evaluate_prediction(prediction, gt, ontologies, tau_arr, normalization='cafa', n_cpu=0):
 
     dfs = []
-    for p in prediction:
-        ns = p.namespace
-        ont = [o for o in ontologies if o.namespace == ns][0]
+    for ns in prediction:
 
         # Number of predicted proteins
-        ne = np.full(len(tau_arr), gt[ns].matrix[:, ont.toi].shape[0])
+        ne = np.full(len(tau_arr), gt[ns].matrix[:, ontologies[ns].toi].shape[0])
 
         # cov, pr, rc, (wcov, wpr, wrc, ru, mi)
-        metrics = compute_metrics(p, gt[ns], tau_arr, ont.toi, ont.toi_ia, ont.ia, n_cpu)
+        metrics = compute_metrics(prediction[ns], gt[ns], tau_arr, ontologies[ns].toi, ontologies[ns].toi_ia, ontologies[ns].ia, n_cpu)
 
         for column in ["pr", "rc", "wpr", "wrc", "ru", "mi"]:
             if column in metrics.columns:
@@ -156,8 +147,8 @@ def evaluate_prediction(prediction, gt, ontologies, tau_arr, normalization='cafa
         metrics['cov'] = np.divide(metrics['cov'], ne, out=np.zeros_like(metrics['cov'], dtype='float'), where=ne > 0)
         metrics['f'] = compute_f(metrics['pr'], metrics['rc'])
 
-        if ont.ia is not None:
-            ne = np.full(len(tau_arr), gt[ns].matrix[:, ont.toi_ia].shape[0])
+        if ontologies[ns].ia is not None:
+            ne = np.full(len(tau_arr), gt[ns].matrix[:, ontologies[ns].toi_ia].shape[0])
             metrics['wcov'] = np.divide(metrics['wcov'], ne, out=np.zeros_like(metrics['wcov'], dtype='float'), where=ne > 0)
             metrics['wf'] = compute_f(metrics['wpr'], metrics['wrc'])
             metrics['s'] = compute_s(metrics['ru'], metrics['mi'])
@@ -165,3 +156,79 @@ def evaluate_prediction(prediction, gt, ontologies, tau_arr, normalization='cafa
         dfs.append(metrics)
 
     return pd.concat(dfs)
+
+
+def cafa_eval(obo_file, pred_dir, gt_file, ia=None, no_orphans=False, norm='cafa', prop='max',
+              max_terms=None, th_step=0.01, threads=1):
+
+    # Tau array, used to compute metrics at different score thresholds
+    tau_arr = np.arange(th_step, 1, th_step)
+
+    # Parse the OBO file and creates a different graphs for each namespace
+    ontologies = obo_parser(obo_file, ("is_a", "part_of"), ia, not no_orphans)
+
+    # Parse ground truth file
+    gt = gt_parser(gt_file, ontologies)
+
+    # Set prediction files looking recursively in the prediction folder
+    pred_folder = os.path.normpath(pred_dir) + "/"  # add the tailing "/"
+    pred_files = []
+    for root, dirs, files in os.walk(pred_folder):
+        for file in files:
+            pred_files.append(os.path.join(root, file))
+    logging.debug("Prediction paths {}".format(pred_files))
+
+    # Parse prediction files and perform evaluation
+    dfs = []
+    for file_name in pred_files:
+        prediction = pred_parser(file_name, ontologies, gt, prop, max_terms)
+        if prediction:
+            df_pred = evaluate_prediction(prediction, gt, ontologies, tau_arr, norm, threads)
+            df_pred['filename'] = file_name.replace(pred_folder, '').replace('/', '_')
+            dfs.append(df_pred)
+            logging.info("Prediction: {}, evaluated".format(file_name))
+        else:
+            logging.warning("Prediction: {}, not evaluated".format(file_name))
+
+    # Concatenate all dataframes and save them
+    df = None
+    dfs_best = {}
+    if dfs:
+        df = pd.concat(dfs)
+
+        # Remove rows with no coverage
+        df = df[df['cov'] > 0].reset_index(drop=True)
+        df.set_index(['filename', 'ns', 'tau'], inplace=True)
+
+        # Select columns to save
+        if ia is not None:
+            columns = ["cov", "pr", "rc", "f", "wcov", "wpr", "wrc", "wf", "mi", "ru", "s"]
+        else:
+            columns = ["cov", "pr", "rc", "f"]
+        df = df[columns]
+
+        # Calculate the best index for each namespace and each evaluation metric
+        for metric, cols in [('f', ['rc', 'pr']), ('wf', ['wrc', 'wpr']), ('s', ['ru', 'mi'])]:
+            if metric in columns:
+                index_best = df.groupby(level=['filename', 'ns'])[metric].idxmax() if metric in ['f', 'wf'] else \
+                    df.groupby(['filename', 'ns'])[metric].idxmin()
+                df_best = df.loc[index_best]
+                df_best['max_cov'] = df.reset_index('tau').loc[[ele[:-1] for ele in index_best]].groupby(level=['filename', 'ns'])['cov'].max()
+                dfs_best[metric] = df_best[columns + ["max_cov"]]
+    else:
+        logging.info("No predictions evaluated")
+
+    return df, dfs_best
+
+
+def write_results(df, dfs_best, out_dir='results'):
+
+    # Create output folder here in order to store the log file
+    out_folder = os.path.normpath(out_dir) + "/"
+    if not os.path.isdir(out_folder):
+        os.makedirs(out_folder)
+
+    df.to_csv('{}/evaluation_all.tsv'.format(out_folder), float_format="%.5f", sep="\t")
+
+    for metric in dfs_best:
+        dfs_best[metric].to_csv('{}/evaluation_best_{}.tsv'.format(out_folder, metric), float_format="%.5f", sep="\t")

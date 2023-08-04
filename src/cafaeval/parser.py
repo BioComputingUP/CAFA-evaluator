@@ -1,14 +1,16 @@
-from graph import Prediction, GroundTruth, propagate
+from cafaeval.graph import Graph, Prediction, GroundTruth, propagate
 import numpy as np
 import logging
+logging.getLogger(__name__).addHandler(logging.NullHandler())
 # import xml.etree.ElementTree as ET
 
 
-def obo_parser(obo_file, valid_rel=("is_a", "part_of")):
+def obo_parser(obo_file, valid_rel=("is_a", "part_of"), ia_file=None, orphans=True):
     """
     Parse a OBO file and returns a list of ontologies, one for each namespace.
     Obsolete terms are excluded as well as external namespaces.
     """
+    # Parse the OBO file and creates a different graph for each namespace
     term_dict = {}
     term_id = None
     namespace = None
@@ -64,7 +66,17 @@ def obo_parser(obo_file, valid_rel=("is_a", "part_of")):
                                                           'def': term_def,
                                                           'alt_id': alt_id,
                                                           'rel': rel}
-    return term_dict
+
+    # Parse IA file
+    ia_dict = None
+    if ia_file is not None:
+        ia_dict = ia_parser(ia_file)
+
+    ontologies = {}
+    for ns, ont_dict in term_dict.items():
+        ontologies[ns] = Graph(ns, ont_dict, ia_dict, orphans)
+
+    return ontologies
 
 
 def gt_parser(gt_file, ontologies):
@@ -77,25 +89,26 @@ def gt_parser(gt_file, ontologies):
             line = line.strip().split()
             if line:
                 p_id, term_id = line[:2]
-                for ont in ontologies:
-                    if term_id in ont.terms_dict:
-                        gt_dict.setdefault(ont.namespace, {}).setdefault(p_id, []).append(term_id)
+                for ns in ontologies:
+                    if term_id in ontologies[ns].terms_dict:
+                        gt_dict.setdefault(ns, {}).setdefault(p_id, []).append(term_id)
                         break
 
     gts = {}
-    for ont in ontologies:
-        if gt_dict.get(ont.namespace):
-            matrix = np.zeros((len(gt_dict[ont.namespace]), ont.idxs), dtype='bool')
+    for ns in ontologies:
+        if gt_dict.get(ns):
+            matrix = np.zeros((len(gt_dict[ns]), ontologies[ns].idxs), dtype='bool')
             ids = {}
-            for i, p_id in enumerate(gt_dict[ont.namespace]):
+            for i, p_id in enumerate(gt_dict[ns]):
                 ids[p_id] = i
-                for term_id in gt_dict[ont.namespace][p_id]:
-                    matrix[i, ont.terms_dict[term_id]['index']] = 1
-            logging.debug("gt matrix {} {} ".format(ont.namespace, matrix))
-            propagate(matrix, ont, ont.order, mode='max')
-            logging.debug("gt matrix propagated {} {} ".format(ont.namespace, matrix))
-            gts[ont.namespace] = GroundTruth(ids, matrix, ont.namespace)
-            logging.info('Ground truth: {}, proteins {}'.format(ont.namespace, len(ids)))
+                for term_id in gt_dict[ns][p_id]:
+                    matrix[i, ontologies[ns].terms_dict[term_id]['index']] = 1
+            logging.debug("gt matrix {} {} ".format(ns, matrix))
+            propagate(matrix, ontologies[ns], ontologies[ns].order, mode='max')
+            logging.debug("gt matrix propagated {} {} ".format(ns, matrix))
+            gts[ns] = GroundTruth(ids, matrix, ns)
+            logging.info('Ground truth: {}, proteins {}, annotations {}'.format(ns, len(ids),
+                                                                                np.count_nonzero(matrix)))
 
     return gts
 
@@ -105,16 +118,14 @@ def pred_parser(pred_file, ontologies, gts, prop_mode, max_terms=None):
     Parse a prediction file and returns a list of prediction objects, one for each namespace.
     If a predicted is predicted multiple times for the same target, it stores the max.
     This is the slow step if the input file is huge, ca. 1 minute for 5GB input on SSD disk.
-
     """
     ids = {}
     matrix = {}
     ns_dict = {}  # {namespace: term}
-    onts = {ont.namespace: ont for ont in ontologies}
     for ns in gts:
         matrix[ns] = np.zeros(gts[ns].matrix.shape, dtype='float')
         ids[ns] = {}
-        for term in onts[ns].terms_dict:
+        for term in ontologies[ns].terms_dict:
             ns_dict[term] = ns
 
     with open(pred_file) as f:
@@ -126,19 +137,20 @@ def pred_parser(pred_file, ontologies, gts, prop_mode, max_terms=None):
                 if ns in gts and p_id in gts[ns].ids:
                     i = gts[ns].ids[p_id]
                     if max_terms is None or np.count_nonzero(matrix[ns][i]) <= max_terms:
-                        j = onts[ns].terms_dict.get(term_id)['index']
+                        j = ontologies[ns].terms_dict.get(term_id)['index']
                         ids[ns][p_id] = i
                         matrix[ns][i, j] = max(matrix[ns][i, j], float(prob))
 
-    predictions = []
+    predictions = {}
     for ns in ids:
         if ids[ns]:
             logging.debug("pred matrix {} {} ".format(ns, matrix))
-            propagate(matrix[ns], onts[ns], onts[ns].order, mode=prop_mode)
+            propagate(matrix[ns], ontologies[ns], ontologies[ns].order, mode=prop_mode)
             logging.debug("pred matrix {} {} ".format(ns, matrix))
 
-            predictions.append(Prediction(ids[ns], matrix[ns], len(ids[ns]), ns))
-            logging.info("Prediction: {}, {}, proteins {}".format(pred_file, ns, len(ids[ns])))
+            predictions[ns] = Prediction(ids[ns], matrix[ns], ns)
+            logging.info("Prediction: {}, {}, proteins {}, annotations {}".format(pred_file, ns, len(ids[ns]),
+                                                                                np.count_nonzero(matrix[ns])))
 
     if not predictions:
         # raise Exception("Empty prediction, check format")

@@ -4,3 +4,6 @@ process_df.ipynb
 ia.ipynb
 harmonic_mean.ipynb
 .idea
+/src/cafaeval.egg-info/
+/.venv/
+/dist/
