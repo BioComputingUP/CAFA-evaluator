@@ -7,3 +7,5 @@ harmonic_mean.ipynb
 /src/cafaeval.egg-info/
 /.venv/
 /dist/
+src/.ipynb_checkpoints
+

@@ -14,6 +14,11 @@ CAFA-evaluator implementation was inspired by the original Matlab code used in C
 
 ## Installation
 
+You can use the tool simply cloning this repo and running `cafaeval.py` command
+line script. Otherwise, you can install the package and in addition to the command
+line you can also import the package as a normal Python module following
+the instructions below.
+
 From GitHub:
 
     git clone https://github.com/BioComputingUP/CAFA-evaluator.git  

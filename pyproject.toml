@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cafaeval"
-version = "1.0.0"
+version = "1.1.0"
 authors = [
     {name = 'Damiano Piovesan', email = 'damiano.piovesan@unipd.it'},
     {name = 'Parnal Joshi', email = 'parnal@iastate.edu'}
@@ -34,7 +34,7 @@ where = ["src"]
 namespaces = false
 
 [project.scripts]
-cafaeval = "cafaeval:command_line"
+cafaeval = "cafaeval.__main__:command_line"
 
 [tool.setuptools.package-data]
 cafaeval = ["data/example/*", "data/example/predictions/*"]
