@@ -34,8 +34,7 @@ where = ["src"]
 namespaces = false
 
 [project.scripts]
-cafaeval = "cafaeval.__main__:command_line"
-cafaeval_example = "cafaeval.__main__:cafa_eval_example"
+cafaeval = "cafaeval:command_line"
 
 [tool.setuptools.package-data]
 cafaeval = ["data/example/*", "data/example/predictions/*"]

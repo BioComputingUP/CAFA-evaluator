@@ -81,6 +81,8 @@ def compute_metrics_w_(tau_arr, g, pred, toi, n_gt, ic_arr):
         metrics[i, 3] = (remaining * ic_arr[toi]).sum(axis=1).sum()
         metrics[i, 4] = (mis * ic_arr[toi]).sum(axis=1).sum()
 
+
+
     return metrics
 
 
@@ -102,6 +104,7 @@ def compute_metrics(pred, gt, tau_arr, toi, toi_ia, ic_arr, n_cpu=0):
         metrics = np.concatenate(pool.starmap(compute_metrics_, arg_lists), axis=0)
     columns = ["cov", "pr", "rc"]
 
+    # Weighted metrics
     if ic_arr is not None:
         g = gt.matrix[:, toi_ia]
         n_gt = (g * ic_arr[toi_ia]).sum(axis=1)

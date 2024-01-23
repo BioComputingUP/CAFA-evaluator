@@ -93,6 +93,11 @@ def gt_parser(gt_file, ontologies):
                     if term_id in ontologies[ns].terms_dict:
                         gt_dict.setdefault(ns, {}).setdefault(p_id, []).append(term_id)
                         break
+                    # Replace alternative ids with canonical ids
+                    elif term_id in ontologies[ns].terms_dict_alt:
+                        for t_id in ontologies[ns].terms_dict_alt[term_id]:
+                            gt_dict.setdefault(ns, {}).setdefault(p_id, []).append(t_id)
+                        break
 
     gts = {}
     for ns in ontologies:
@@ -127,6 +132,8 @@ def pred_parser(pred_file, ontologies, gts, prop_mode, max_terms=None):
         ids[ns] = {}
         for term in ontologies[ns].terms_dict:
             ns_dict[term] = ns
+        for term in ontologies[ns].terms_dict_alt:
+            ns_dict[term] = ns
 
     with open(pred_file) as f:
         for line in f:
@@ -135,7 +142,11 @@ def pred_parser(pred_file, ontologies, gts, prop_mode, max_terms=None):
                 p_id, term_id, prob = line[:3]
                 ns = ns_dict.get(term_id)
                 if ns in gts and p_id in gts[ns].ids:
+                    # Get protein index
                     i = gts[ns].ids[p_id]
+                    # Replace alternative ids with canonical ids
+                    if term_id in ontologies[ns].terms_dict_alt:
+                        term_id = ontologies[ns].terms_dict_alt[term_id]
                     if max_terms is None or np.count_nonzero(matrix[ns][i]) <= max_terms:
                         j = ontologies[ns].terms_dict.get(term_id)['index']
                         ids[ns][p_id] = i

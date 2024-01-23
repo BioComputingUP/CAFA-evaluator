@@ -12,12 +12,14 @@ class Graph:
     Parents that are in a different namespace are discarded
     """
     def __init__(self, namespace, terms_dict, ia_dict=None, orphans=False):
+
         """
         terms_dict = {term: {name: , namespace: , def: , alt_id: , rel:}}
         """
         self.namespace = namespace
         self.dag = []  # [[], ...] terms (rows, axis 0) x parents (columns, axis 1)
         self.terms_dict = {}  # {term: {index: , name: , namespace: , def: }  used to assign term indexes in the gt
+        self.terms_dict_alt = {}  # {alt_id: set(term, ...) }  alternative ids to canonical ids
         self.terms_list = []  # [{id: term, name:, namespace: , def:, adg: [], children: []}, ...]
         self.idxs = None  # Number of terms
         self.order = None
@@ -32,7 +34,8 @@ class Graph:
                                  'adj': [], 'children': []})
             self.terms_dict[term_id] = {'index': self.idxs, 'name': term['name'], 'namespace': namespace, 'def': term['def']}
             for a_id in term['alt_id']:
-                self.terms_dict[a_id] = copy.copy(self.terms_dict[term_id])
+                self.terms_dict_alt.setdefault(a_id, set()).add(term_id)
+
         self.idxs += 1
 
         self.dag = np.zeros((self.idxs, self.idxs), dtype='bool')
@@ -62,9 +65,11 @@ class Graph:
         if ia_dict is not None:
             self.set_ia(ia_dict)
 
-        logging.info("Ontology: {}, roots {}, leaves {}".format(self.namespace,
+        logging.info("Ontology: {}, total {}, roots {}, leaves {}, alternative_ids {}".format(self.namespace,
+                                                                len(np.where(self.dag.sum(axis=1) != 0)[0]),
                                                                 len(np.where(self.dag.sum(axis=1) == 0)[0]),
-                                                                len(np.where(self.dag.sum(axis=0) == 0)[0])))
+                                                                len(np.where(self.dag.sum(axis=0) == 0)[0]),
+                                                                len(self.terms_dict_alt)))
 
         return
 
