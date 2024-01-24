@@ -28,6 +28,9 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/BioComputingUP/CAFA-evaluator"
+Repository = "https://github.com/BioComputingUP/CAFA-evaluator"
+Changelog = "https://github.com/BioComputingUP/CAFA-evaluator/blob/main/CHANGELOG.md"
+Wiki = "https://github.com/BioComputingUP/CAFA-evaluator/wiki"
 
 [tool.setuptools.packages.find]
 where = ["src"]
