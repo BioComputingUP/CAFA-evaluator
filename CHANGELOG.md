@@ -1,7 +1,7 @@
 # Change Log
 All notable changes to this project will be documented in this file.
  
-## [Unreleased] - 2024-01-23
+## [1.1.0] - 2024-01-24
   
 We changed the way alternative identifiers in ontology files are considered.
 Now alternative identifiers are recognized in both the ground truth and prediction files
