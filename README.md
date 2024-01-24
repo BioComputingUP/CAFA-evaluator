@@ -12,12 +12,19 @@ The package also contains a **Jupyter Notebook** to generate precision-recall an
 CAFA-evaluator implementation was inspired by the original Matlab code used in CAFA2 assessment and available at 
 [https://github.com/yuxjiang/CAFA2](https://github.com/yuxjiang/CAFA2).
 
+Visit the Wiki for more information about the [CAFA-evaluator algorithm](https://github.com/BioComputingUP/CAFA-evaluator/wiki).
+
 ## Installation
 
-You can use the tool simply cloning this repo and running `cafaeval.py` command
-line script. Otherwise, you can install the package and in addition to the command
-line you can also import the package as a normal Python module following
-the instructions below.
+You can use the tool simply cloning this repo and running `__main__.py` Python script. 
+which implements a command line interface.
+To avoid import errors you need to add the source root folder 
+to the `PYTHONPATH` environment variable. For example:
+
+    export PYTHONPATH=/path/to/CAFA-evaluator/src:$PYTHONPATH
+
+Alternatively, you can install the package with Pip. No need to export any variable
+in this case.
 
 From GitHub:
 
@@ -30,32 +37,41 @@ From PyPI:
 
 ## Usage
 
+The program can be executing the command line interface or as a library.
+Both the command line and the library accept the following arguments:
+
+* **Ontology file** in OBO format
+
+* **Prediction folder** contain prediction files. Files can be organized into sub-folders, 
+sub-folders are processed recursively and the sub-folder name is used as prefix for the method name
+
+* **Ground truth file** containing targets and associated ontology terms
+
 Example input files are provided inside the `data/example` folder. If you have installed the software using pip,
-the folder is located in the Python site-packages directory.
+the folder is located in the Python `site-packages` directory.
 
-**Note**: Weighted scores are generated only if the *Information Accretion* file is provided.
+### Command line
 
+When executed from the command line the script logs information about the calculation in the console (standard error) and
+will create a folder named `results` containing the evaluation results. 
+A different folder can be specified using the `-out_dir` option. 
+
+The following options are available:
+When installed with pip the script is available as `cafaeval` command.
+
+```bashcon
+cafaeval ontology_file prediction_folder ground_truth_file 
+```
+If you simply cloned the repository:
+```bashcon
+python3 /path/to/CAFA-evaluator/src/cafaeval/__main__.py ontology_file prediction_folder ground_truth_file
+```
 
 ### Library
 
-The `cafa_eval` function is the main entry point of the package. It accepts the following arguments:
+The `cafa_eval` function is the main entry point of the package. 
+Below is reported an example using the example files provided in the `data/example` folder.
 
-* Ontology file in OBO format
-
-* Prediction folder contain prediction files. Files can be organized into sub-folders, 
-sub-folders are processed recursively and the sub-folder name is used as prefix for the method name
-
-* Ground truth file containing targets and associated ontology terms
-
-Optional arguments are:
-
-* Information accretion file
-* Flag to exclude orphan terms, e.g. the root(s)
-* Normalization strategy
-* Propagation strategy 
-* Max number of terms to consider for each protein and namespace
-* Threshold step size
-* Max number of threads to use
 
 ```pycon
 >>> import cafaeval
@@ -83,7 +99,13 @@ pred_3.tsv disorder_function 0.89  1.000000  0.638889  0.701290  0.668637      1
 pred_4.tsv disorder_function 0.06  1.000000  0.777778  0.774504  0.776137      1.0
 pred_5.tsv disorder_function 0.38  0.994048  0.596671  0.776389  0.674768      1.0})
 ```
-Results can be saved to file using the `save_results` function:
+
+The output of `cafa_eval` is a tuple containing:
+* A pandas DataFrame with the evaluation results, one row per prediction file, namespace and threshold.
+* A dictionary with the best scores (max F-measure, max Weighted F-measure, min Semantic similarity). For each 
+score the dictionary contain a pandas DataFrame with one row per prediction file, namespace and threshold. 
+
+The `write_results` function generates the output files.
 
 ```pycon
 >>> import cafaeval
@@ -91,26 +113,6 @@ Results can be saved to file using the `save_results` function:
 >>> res = cafa_eval("IDPO_disorder_function.obo", "predictions", "ground_truth.tsv")
 >>> write_results(*res)
 
-```
-
-The output of `cafa_eval` is a tuple containing:
-* A pandas DataFrame with the evaluation results, one row per prediction file, namespace and threshold.
-* A dictionary with the best scores (max F-measure, max Weighted F-measure, min Semantic similarity). For each 
-score the dictionary contain a pandas DataFrame with one row per prediction file, namespace and threshold. 
-
-The `write_results` function generated the following files:
-* *evaluation_all.tsv* corresponding to the first object returned by the `cafa_eval` function.
-* *evaluation_best_< metric >.tsv* corresponding to the second object returned by the `cafa_eval` function. 
-A different file for each metric is created.
-
-### Command line
-
-When executed from the command line the script logs information about the calculation in the console (standard error) and
-will create a folder named `results` containing the evaluation results. 
-A different folder can be specified using the `-out_dir` option. 
-
-```bashcon
-cafaeval IDPO_disorder_function.obo predictions ground_truth.tsv 
 ```
 
 
@@ -136,7 +138,7 @@ T_4	IDPO:00025
 ...
 ~~~
 
-**Information accretion (optional)** - If not provided the weighted and S statistics are not generated.
+**Information accretion file (optional)** - If not provided, the weighted and S statistics are not generated.
 Information accretion (IA) can be calculated as described in
 [Wyatt and Radivojac, Bioinformatics, 2013](https://pubmed.ncbi.nlm.nih.gov/23813009/).
 
@@ -147,6 +149,32 @@ IDPO:00502  1.34
 IDPO:00025  0.56
 ...
 ```
+
+## Output files
+
+Output files are generated in the `results` folder. The same files are gerated by both
+the command line and the `write_results` function.
+
+* `evaluation_all.tsv` corresponds to the first object returned by the `cafa_eval` function.
+* `evaluation_best_< metric >.tsv` corresponds to the second object returned by the `cafa_eval` function. 
+A different file for each metric is created.
+
+**Note**: Weighted scores are generated only if the *Information Accretion* file is provided.
+
+
+## Optional parameters
+
+|   Argument  | Default value | Description                                                                                                                                                                                                                                                |
+|:-----------:|------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|   -out_dir  |   'results' | Output directory (tsv files + log). Either relative to current path or absolute                                                                                                                                                                            |
+|     -ia     |            | Information accretion file                                                                                                                                                                                                                                 |
+| -no_orphans |  False (flag) | Exclude orphans nodes (e.g. roots) from the calculation                                                                                                                                                                                                    |
+|    -norm    |     'cafa'  | Normalization strategy. `cafa` normalize precision by the number of predicted targets and recall by the number of targets in the ground truth. `pred` normalize by the number of  predicted targets. `gt` normalize by the number of ground truth proteins |
+|    -prop    |     'max'  | Ancestor propagation strategy. `max` propagate the max score of the traversed subgraph iteratively. `fill` propagate with max until a different score is found                                                                                             |
+|   -th_step  |      0.01  | Step size of prediction score thresholds to consider in the range [0, 1). A smaller step, means more calculation                                                                                                                                           |
+|  -max_terms |            | Number of terms for protein and namespace to consider in the evaluation. Parsing stops when the target limit for every namespace is reached. The score is not checked, meaning that terms are not sorted before the check, and the check is performed before propagation.                                                                                                                                                                                  |
+|   -threads  |       4    | Parallel threads. `0` means use all available CPU threads. Do not use multi thread if you are short in memory                                                                                                                                              |
+
 
 
 ## Plotting
@@ -168,10 +196,10 @@ pred_3.tsv	JohnLab	JohnLab_model_1
 
 The notebook generates the following files:
 
-* *fig_< metric >_< name_space >.png* A figure for each namespace in the dataframe and the selected metric. 
+* `fig_< metric >_< name_space >.png` A figure for each namespace in the dataframe and the selected metric. 
 The notebook generates one metric at the time, you have to modify the input cell to generate the plots for a different metric
 
-* fig_< metric >.tsv* - A file with the data points for the metric curves. One curve for each method.
+* `fig_< metric >.tsv` A file with the data points for the metric curves. One curve for each method.
 ```
 group	label	ns	tau	cov	wrc	wpr	wf
 INGA	INGA_1	biological_process	0.010	0.993	0.557	0.094	0.160
@@ -179,64 +207,4 @@ INGA	INGA_1	biological_process	0.020	0.993	0.555	0.094	0.161
 INGA	INGA_1	biological_process	0.030	0.993	0.552	0.095	0.162
 INGA	INGA_1	biological_process	0.040	0.993	0.551	0.095	0.163
 ```
-
-## Algorithm information 
-
-#### Notes
-* The word `aspect`, `namespace` and `sub-ontology` are used interchangeably in the following documentation.
-* In order to replicate CAFA results, you can simply adapt the input files. 
-  - *No/partial knowledge* can be reproduced by filtering/splitting the **ground truth file** 
-  - In order to exclude specific terms from the analyses, 
-e.g. generic "binding" terms, you can directly modify the input **ontology file** 
-
-#### Input filtering
-
-Prediction files are filtered considering only those targets included in the ground truth and 
-only those terms included in the ontology file. 
-If the ground truth contains only annotations from one aspect (e.g. "molecular function"), 
-the evaluation is provided only for that aspect.
-The `-max_terms` parameter determines the maximum number of terms that will be considered for each target and namespace. 
-Parsing stops when the target limit for every namespace is reached. The score is not checked, 
-meaning that terms are not sorted before the check, and the check is performed before propagation.
-
-The ontology is processed with an internal parser that accepts only the OBO format. 
-The following rules are applied: 
-  - Obsolete terms are always excluded
-  - Only "is_a" and "part_of" relationships are considered
-  - Cross-aspect (cross-namespace) relationships are always discarded
-  - Alternative term IDs are automatically mapped to the main ID
-
-When information accretion is provided, terms which are not available in the accretion file are 
-removed from the ontology.
-
-#### Terms propagation
-
-Both the predictions and the ground truth annotations are always propagated up to the ontology root(s). 
-Two strategies are available: i) prediction scores are propagated without overwriting the scores 
-assigned to the parents; ii) scores are propagated considering always the max.
-
-#### Memory usage
-
-- The algorithm stores in memory a Numpy boolean *N x M* array 
-(N = number of ground truth targets; M = ontology terms of a single aspect)
-for each aspect in the ground truth file.
-
-- An array of the same size (rows &le; N), but containing floats (the prediction scores) instead of booleans, 
-is stored for each prediction file. Prediction files are processed one by one and the matrix gets reassigned.
-
-
-
-
-## CAFA5 challenge (Kaggle)
-Owing to its reliability and accuracy, the organizers have selected CAFA-evaluator as the official evaluation software
-in the [CAFA5 Kaggle](https://www.kaggle.com/competitions/cafa-5-protein-function-prediction) competition. 
-In Kaggle the software is executed with the following command:
-
-    cafaeval go-basic.obo prediction_dir test_terms.tsv -ia IA.txt -prop fill -norm cafa -th_step 0.001 -max_terms 500
-
-In the example above the method prediction file should be inside the `prediction_dir` folder and 
-evaluated against the `test_terms.tsv` file (not available to participants) containing the ground truth.
-
-
-
 
