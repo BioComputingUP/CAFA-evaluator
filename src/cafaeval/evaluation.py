@@ -45,7 +45,6 @@ def compute_metrics_(tau_arr, g, pred, toi, n_gt, ic_arr):
 
         # Normal evaluation
         if ic_arr is None:
-            # Positive predictions
             n_pred = p.sum(axis=1)  # TP + FP
             n_intersection = intersection.sum(axis=1)  # TP
 
@@ -56,7 +55,6 @@ def compute_metrics_(tau_arr, g, pred, toi, n_gt, ic_arr):
 
         # Weighted evaluation
         else:
-            # Positive predictions
             n_pred = (p * ic_arr[toi]).sum(axis=1)  # TP + FP
             n_intersection = (intersection * ic_arr[toi]).sum(axis=1)  # TP
 
