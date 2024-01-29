@@ -84,7 +84,7 @@ def gt_parser(gt_file, ontologies):
     Parse ground truth file. Discard terms not included in the ontology.
     """
     gt_dict = {}
-
+    replaced = 0
     with open(gt_file) as f:
         for line in f:
             line = line.strip().split()
@@ -98,6 +98,7 @@ def gt_parser(gt_file, ontologies):
                     elif term_id in ontologies[ns].terms_dict_alt:
                         for t_id in ontologies[ns].terms_dict_alt[term_id]:
                             gt_dict.setdefault(ns, {}).setdefault(p_id, []).append(t_id)
+                            replaced += 1
                         break
 
     gts = {}
@@ -113,8 +114,8 @@ def gt_parser(gt_file, ontologies):
             propagate(matrix, ontologies[ns], ontologies[ns].order, mode='max')
             logging.debug("gt matrix propagated {} {} ".format(ns, matrix))
             gts[ns] = GroundTruth(ids, matrix, ns)
-            logging.info('Ground truth: {}, proteins {}, annotations {}'.format(ns, len(ids),
-                                                                                np.count_nonzero(matrix)))
+            logging.info('Ground truth: {}, proteins {}, annotations {}, replaced alt. ids {}'.format(ns, len(ids),
+                                                                                np.count_nonzero(matrix), replaced))
 
     return gts
 
@@ -128,6 +129,7 @@ def pred_parser(pred_file, ontologies, gts, prop_mode, max_terms=None):
     ids = {}
     matrix = {}
     ns_dict = {}  # {namespace: term}
+    replaced = 0
     for ns in gts:
         matrix[ns] = np.zeros(gts[ns].matrix.shape, dtype='float')
         ids[ns] = {}
@@ -148,6 +150,7 @@ def pred_parser(pred_file, ontologies, gts, prop_mode, max_terms=None):
                     # Replace alternative ids with canonical ids
                     if term_id in ontologies[ns].terms_dict_alt:
                         term_id = ontologies[ns].terms_dict_alt[term_id]
+                        replaced += 1
                     if max_terms is None or np.count_nonzero(matrix[ns][i]) <= max_terms:
                         j = ontologies[ns].terms_dict.get(term_id)['index']
                         ids[ns][p_id] = i
@@ -161,8 +164,8 @@ def pred_parser(pred_file, ontologies, gts, prop_mode, max_terms=None):
             logging.debug("pred matrix {} {} ".format(ns, matrix))
 
             predictions[ns] = Prediction(ids[ns], matrix[ns], ns)
-            logging.info("Prediction: {}, {}, proteins {}, annotations {}".format(pred_file, ns, len(ids[ns]),
-                                                                                np.count_nonzero(matrix[ns])))
+            logging.info("Prediction: {}, {}, proteins {}, annotations {}, replaced alt. ids {}".format(pred_file, ns, len(ids[ns]),
+                                                                                np.count_nonzero(matrix[ns]), replaced))
 
     if not predictions:
         # raise Exception("Empty prediction, check format")
