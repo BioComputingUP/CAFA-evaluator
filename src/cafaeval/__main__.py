@@ -50,7 +50,7 @@ def command_line():
                              args.max_terms, args.th_step, args.threads)
 
     # Write the results
-    write_results(df, dfs_best, args.out_dir)
+    write_results(df, dfs_best, args.out_dir, args.th_step)
 
 
 if __name__ == "__main__":

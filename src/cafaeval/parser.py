@@ -84,6 +84,7 @@ def gt_parser(gt_file, ontologies):
     Parse ground truth file. Discard terms not included in the ontology.
     """
     gt_dict = {}
+
     with open(gt_file) as f:
         for line in f:
             line = line.strip().split()

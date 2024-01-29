@@ -84,7 +84,7 @@ def compute_metrics(pred, gt, tau_arr, toi, toi_ia, ic_arr, n_cpu=0):
         n_cpu = mp.cpu_count()
 
     # Simple metrics
-    columns = ["cov", "tp", "fp", "fn", "pr", "rc"]
+    columns = ["n", "tp", "fp", "fn", "pr", "rc"]
     g = gt.matrix[:, toi]
     n_gt = g.sum(axis=1)
     arg_lists = [[tau_arr, g, pred, toi, n_gt, None] for tau_arr in np.array_split(tau_arr, n_cpu)]
@@ -93,7 +93,7 @@ def compute_metrics(pred, gt, tau_arr, toi, toi_ia, ic_arr, n_cpu=0):
 
     # Weighted metrics
     if ic_arr is not None:
-        columns.extend(["wcov", "wtp", "wfp", "wfn", "wpr", "wrc"])
+        columns.extend(["wn", "wtp", "wfp", "wfn", "wpr", "wrc"])  # fp = misinformation, fn = remaining uncertainty
         g = gt.matrix[:, toi_ia]
         n_gt = (g * ic_arr[toi_ia]).sum(axis=1)
         arg_lists = [[tau_arr, g, pred, toi_ia, n_gt, ic_arr] for tau_arr in np.array_split(tau_arr, n_cpu)]
@@ -117,18 +117,18 @@ def evaluate_prediction(prediction, gt, ontologies, tau_arr, normalization='cafa
 
         # Normalization
         for column in metrics.columns:
-            if column not in ["cov", "wcov"]:
+            if column not in ["n", "tp", "fp", "fn", "wn", "wtp", "wfp", "wfn"]:
 
                 # By default normalize by gt
                 denominator = ne
 
                 # Normalize by pred (cov)
-                if normalization == 'pred' or (normalization == 'cafa' and column in ["pr" or "wpr"]):
+                if normalization == 'pred' or (normalization == 'cafa' and column in ["pr", "wpr"]):
                     if column[0] != "w":
-                        denominator = metrics["cov"]
+                        denominator = metrics["n"]
                     else:
                         # Normalize by weighted cov
-                        denominator = metrics["wcov"]
+                        denominator = metrics["wn"]
 
                 metrics[column] = np.divide(metrics[column], denominator,
                                             out=np.zeros_like(metrics[column], dtype='float'), where=denominator > 0)
@@ -136,15 +136,18 @@ def evaluate_prediction(prediction, gt, ontologies, tau_arr, normalization='cafa
         metrics['ns'] = [ns] * len(tau_arr)
         metrics['tau'] = tau_arr
 
-        metrics['cov'] = np.divide(metrics['cov'], ne, out=np.zeros_like(metrics['cov'], dtype='float'), where=ne > 0)
+        metrics['cov'] = np.divide(metrics['n'], ne, out=np.zeros_like(metrics['n'], dtype='float'), where=ne > 0)
         metrics['f'] = compute_f(metrics['pr'], metrics['rc'])
 
         if ontologies[ns].ia is not None:
             ne = np.full(len(tau_arr), gt[ns].matrix[:, ontologies[ns].toi_ia].shape[0])
 
-            metrics['wcov'] = np.divide(metrics['wcov'], ne, out=np.zeros_like(metrics['wcov'], dtype='float'), where=ne > 0)
+            metrics['wcov'] = np.divide(metrics['wn'], ne, out=np.zeros_like(metrics['wn'], dtype='float'), where=ne > 0)
             metrics['wf'] = compute_f(metrics['wpr'], metrics['wrc'])
-            metrics['s'] = compute_s(metrics['fn'], metrics['fp'])
+            metrics['mi'] = np.divide(metrics['wfp'], ne, out=np.zeros_like(metrics['wcov'], dtype='float'), where=ne > 0)
+            metrics['ru'] = np.divide(metrics['wfn'], ne, out=np.zeros_like(metrics['wcov'], dtype='float'),
+                                      where=ne > 0)
+            metrics['s'] = compute_s(metrics['ru'], metrics['mi'])
 
         dfs.append(metrics)
 
@@ -195,9 +198,9 @@ def cafa_eval(obo_file, pred_dir, gt_file, ia=None, no_orphans=False, norm='cafa
 
         # Select columns to save
         if ia is not None:
-            columns = ["cov", "tp", "fp", "fn", "pr", "rc", "f", "wcov", "wtp", "wfp", "wfn", "wpr", "wrc", "wf", "s"]
+            columns = ["n", "tp", "fp", "fn", "cov", "pr", "rc", "f", "wn", "wtp", "wfp", "wfn", "wcov", "wpr", "wrc", "wf", "mi", "ru", "s"]
         else:
-            columns = ["cov", "tp", "fp", "fn", "pr", "rc", "f"]
+            columns = ["n", "tp", "fp", "fn", "cov", "pr", "rc", "f"]
         df = df[columns]
 
         # Calculate the best index for each namespace and each evaluation metric
@@ -214,14 +217,16 @@ def cafa_eval(obo_file, pred_dir, gt_file, ia=None, no_orphans=False, norm='cafa
     return df, dfs_best
 
 
-def write_results(df, dfs_best, out_dir='results'):
+def write_results(df, dfs_best, out_dir='results', th_step=0.01):
 
     # Create output folder here in order to store the log file
     out_folder = os.path.normpath(out_dir) + "/"
     if not os.path.isdir(out_folder):
         os.makedirs(out_folder)
 
-    df.to_csv('{}/evaluation_all.tsv'.format(out_folder), float_format="%.5f", sep="\t")
+    decimals = int(np.ceil(-np.log10(th_step))) + 1
+
+    df.to_csv('{}/evaluation_all.tsv'.format(out_folder), float_format="%.{}f".format(decimals), sep="\t")
 
     for metric in dfs_best:
         dfs_best[metric].to_csv('{}/evaluation_best_{}.tsv'.format(out_folder, metric), float_format="%.5f", sep="\t")
