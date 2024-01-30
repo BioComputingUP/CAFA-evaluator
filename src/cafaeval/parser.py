@@ -84,7 +84,7 @@ def gt_parser(gt_file, ontologies):
     Parse ground truth file. Discard terms not included in the ontology.
     """
     gt_dict = {}
-    replaced = 0
+    replaced = {}
     with open(gt_file) as f:
         for line in f:
             line = line.strip().split()
@@ -98,7 +98,8 @@ def gt_parser(gt_file, ontologies):
                     elif term_id in ontologies[ns].terms_dict_alt:
                         for t_id in ontologies[ns].terms_dict_alt[term_id]:
                             gt_dict.setdefault(ns, {}).setdefault(p_id, []).append(t_id)
-                            replaced += 1
+                            replaced.setdefault(ns, 0)
+                            replaced[ns] += 1
                         break
 
     gts = {}
@@ -115,7 +116,7 @@ def gt_parser(gt_file, ontologies):
             logging.debug("gt matrix propagated {} {} ".format(ns, matrix))
             gts[ns] = GroundTruth(ids, matrix, ns)
             logging.info('Ground truth: {}, proteins {}, annotations {}, replaced alt. ids {}'.format(ns, len(ids),
-                                                                                np.count_nonzero(matrix), replaced))
+                                                                                np.count_nonzero(matrix), replaced.get(ns, 0)))
 
     return gts
 
@@ -129,7 +130,7 @@ def pred_parser(pred_file, ontologies, gts, prop_mode, max_terms=None):
     ids = {}
     matrix = {}
     ns_dict = {}  # {namespace: term}
-    replaced = 0
+    replaced = {}
     for ns in gts:
         matrix[ns] = np.zeros(gts[ns].matrix.shape, dtype='float')
         ids[ns] = {}
@@ -138,7 +139,7 @@ def pred_parser(pred_file, ontologies, gts, prop_mode, max_terms=None):
         for term in ontologies[ns].terms_dict_alt:
             ns_dict[term] = ns
 
-    with open(pred_file) as f:
+    with (open(pred_file) as f):
         for line in f:
             line = line.strip().split()
             if line and len(line) > 2:
@@ -148,13 +149,16 @@ def pred_parser(pred_file, ontologies, gts, prop_mode, max_terms=None):
                     # Get protein index
                     i = gts[ns].ids[p_id]
                     # Replace alternative ids with canonical ids
+                    term_ids = [term_id]
                     if term_id in ontologies[ns].terms_dict_alt:
-                        term_id = ontologies[ns].terms_dict_alt[term_id]
-                        replaced += 1
-                    if max_terms is None or np.count_nonzero(matrix[ns][i]) <= max_terms:
-                        j = ontologies[ns].terms_dict.get(term_id)['index']
-                        ids[ns][p_id] = i
-                        matrix[ns][i, j] = max(matrix[ns][i, j], float(prob))
+                        term_ids = ontologies[ns].terms_dict_alt[term_id]
+                        replaced.setdefault(ns, 0)
+                        replaced[ns] += len(term_ids)
+                    for term_id in term_ids:
+                        if max_terms is None or np.count_nonzero(matrix[ns][i]) <= max_terms:
+                            j = ontologies[ns].terms_dict.get(term_id)['index']
+                            ids[ns][p_id] = i
+                            matrix[ns][i, j] = max(matrix[ns][i, j], float(prob))
 
     predictions = {}
     for ns in ids:
@@ -165,7 +169,7 @@ def pred_parser(pred_file, ontologies, gts, prop_mode, max_terms=None):
 
             predictions[ns] = Prediction(ids[ns], matrix[ns], ns)
             logging.info("Prediction: {}, {}, proteins {}, annotations {}, replaced alt. ids {}".format(pred_file, ns, len(ids[ns]),
-                                                                                np.count_nonzero(matrix[ns]), replaced))
+                                                                                np.count_nonzero(matrix[ns]), replaced.get(ns, 0)))
 
     if not predictions:
         # raise Exception("Empty prediction, check format")
@@ -182,28 +186,3 @@ def ia_parser(file):
                 term, ia = line.strip().split()
                 ia_dict[term] = float(ia)
     return ia_dict
-
-
-# def parse_sprot_xml(input_file, output_file):
-#     """
-#     Parse the Swiss-Prot XML annotation file
-#     and write a TSV file with:
-#     - accession
-#     - GO term
-#     - evidence code (ECO)
-#     """
-#     namespaces = {'uniprot': 'http://uniprot.org/uniprot'}
-#     nsl = len(namespaces['uniprot']) + 2
-#     with open(input_file) as f:
-#         with open(output_file, 'w') as fout:
-#             for event, elem in ET.iterparse(f, events=('start', 'end')):
-#                 if event == 'end':
-#                     if elem.tag[nsl:] == 'entry':
-#                         acc = elem.find('uniprot:accession', namespaces).text
-#                         for el in elem.iterfind('uniprot:dbReference', namespaces):
-#                             if el.attrib['type'] == 'GO':
-#                                 for at in el.iter():
-#                                     if at.attrib['type'] == 'evidence':
-#                                         fout.write('{}\t{}\t{}\n'.format(acc, el.attrib['id'], at.attrib['value']))
-#                         elem.clear()
-#     return
