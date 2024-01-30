@@ -218,8 +218,10 @@ def cafa_eval(obo_file, pred_dir, gt_file, ia=None, no_orphans=False, norm='cafa
             if metric in df.columns:
                 index_best = df.groupby(level=['filename', 'ns'])[metric].idxmax() if metric in ['f', 'wf', 'f_micro', 'wf_micro'] else df.groupby(['filename', 'ns'])[metric].idxmin()
                 df_best = df.loc[index_best]
-                df_best['cov_max'] = df.reset_index('tau').loc[[ele[:-1] for ele in index_best]].groupby(level=['filename', 'ns'])['cov'].max()
-                df_best['wcov_max'] = df.reset_index('tau').loc[[ele[:-1] for ele in index_best]].groupby(level=['filename', 'ns'])['wcov'].max()
+                if metric[0] != 'w':
+                    df_best['cov_max'] = df.reset_index('tau').loc[[ele[:-1] for ele in index_best]].groupby(level=['filename', 'ns'])['cov'].max()
+                else:
+                    df_best['cov_max'] = df.reset_index('tau').loc[[ele[:-1] for ele in index_best]].groupby(level=['filename', 'ns'])['wcov'].max()
                 dfs_best[metric] = df_best
     else:
         logging.info("No predictions evaluated")
@@ -237,7 +239,6 @@ def write_results(df, dfs_best, out_dir='results', th_step=0.01):
     # Set the number of decimals to write in the output files based on the threshold step size
     decimals = int(np.ceil(-np.log10(th_step))) + 1
 
-    # ['n', 'tp', 'fp', 'fn', 'pr', 'rc', 'wn', 'wtp', 'wfp', 'wfn', 'wpr', 'wrc', 'cov', 'f', 'wcov', 'wf', 'mi', 'ru', 's']
     df.to_csv('{}/evaluation_all.tsv'.format(out_folder), float_format="%.{}f".format(decimals), sep="\t")
 
     for metric in dfs_best:
