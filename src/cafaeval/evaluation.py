@@ -216,7 +216,7 @@ def cafa_eval(obo_file, pred_dir, gt_file, ia=None, no_orphans=False, norm='cafa
         # Calculate the best index for each namespace and each evaluation metric
         for metric, cols in [('f', ['rc', 'pr']), ('wf', ['wrc', 'wpr']), ('s', ['ru', 'mi']), ('f_micro', ['rc_micro', 'pr_micro']), ('wf_micro', ['wrc_micro', 'wpr_micro'])]:
             if metric in df.columns:
-                index_best = df.groupby(level=['filename', 'ns'])[metric].idxmax() if metric in ['f', 'wf', 'f_micro', 'wf_micro'] else df.groupby(['filename', 'ns'])[metric].idxmin()
+                index_best = df.groupby(level=['filename', 'ns'])[metric].idxmax() if metric in ['f', 'wf', 'f_micro', 'wf_micro', 'aps', 'waps'] else df.groupby(['filename', 'ns'])[metric].idxmin()
                 df_best = df.loc[index_best]
                 if metric[0] != 'w':
                     df_best['cov_max'] = df.reset_index('tau').loc[[ele[:-1] for ele in index_best]].groupby(level=['filename', 'ns'])['cov'].max()
