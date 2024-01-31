@@ -134,15 +134,12 @@ def evaluate_prediction(prediction, gt, ontologies, tau_arr, normalization='cafa
     dfs = []
     dfs_w = []
     for ns in prediction:
-        # cov, tp, fp, fn, pr, rc
         ne = np.full(len(tau_arr), gt[ns].matrix[:, ontologies[ns].toi].shape[0])
-        metrics = compute_metrics(prediction[ns], gt[ns], tau_arr, ontologies[ns].toi, ontologies[ns].ia, n_cpu)
-        dfs.append(normalize(metrics, ns, tau_arr, ne, normalization))
+        dfs.append(normalize(compute_metrics(prediction[ns], gt[ns], tau_arr, ontologies[ns].toi, None, n_cpu), ns, tau_arr, ne, normalization))
 
         if ontologies[ns].ia is not None:
             ne = np.full(len(tau_arr), gt[ns].matrix[:, ontologies[ns].toi_ia].shape[0])
-            metrics = compute_metrics(prediction[ns], gt[ns], tau_arr, ontologies[ns].toi_ia, ontologies[ns].ia, n_cpu)
-            dfs_w.append(normalize(metrics, ns, tau_arr, ne, normalization))
+            dfs_w.append(normalize(compute_metrics(prediction[ns], gt[ns], tau_arr, ontologies[ns].toi_ia, ontologies[ns].ia, n_cpu), ns, tau_arr, ne, normalization))
 
     dfs = pd.concat(dfs)
 
