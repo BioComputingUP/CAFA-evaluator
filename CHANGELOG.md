@@ -2,9 +2,19 @@
 All notable changes to this project will be documented in this file.
 
 ## [current] - 
+- We are working to include the calculation of bootstrap confidence intervals.
+
+## [1.2.0] - 2024-02-01 
 - We included micro-average metrics. Now precision, recall and F-score 
 in addition to previously reported metrics are calculated as micro-averages 
-from the total number of true positives, false positives and false negatives.
+by averaging the confusion matrices over targets before calculating aggregated metrics
+(precision, recall, ect.).
+- We include the calculation of the average precision score (APS) in the plot notebook.
+
+### Changed
+- plot.ipynb, added calculation of average precision score (APS) in the plot notebook.
+- evaluation.py, micro-average calculation, some refactoring of the core functions.
+- parser.py, minor fixes and improvements.
 
 ## [1.1.0] - 2024-01-24
   
