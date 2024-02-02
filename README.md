@@ -12,7 +12,7 @@ The package also contains a **Jupyter Notebook** to generate precision-recall an
 CAFA-evaluator implementation was inspired by the original Matlab code used in CAFA2 assessment and available at 
 [https://github.com/yuxjiang/CAFA2](https://github.com/yuxjiang/CAFA2).
 
-Visit the Wiki for more information about the [CAFA-evaluator algorithm](https://github.com/BioComputingUP/CAFA-evaluator/wiki).
+Visit our Wiki for more information about the [CAFA-evaluator algorithm](https://github.com/BioComputingUP/CAFA-evaluator/wiki).
 
 ## Installation
 
@@ -38,7 +38,7 @@ From PyPI:
 ## Usage
 
 The program can be executing the command line interface or as a library.
-Both the command line and the library accept the following arguments:
+Both the command line and the library accept the following positional arguments:
 
 * **Ontology file** in OBO format
 
@@ -77,34 +77,45 @@ Below is reported an example using the example files provided in the `data/examp
 >>> import cafaeval
 >>> from cafaeval.evaluation import cafa_eval
 >>> cafa_eval("IDPO_disorder_function.obo", "predictions", "ground_truth.tsv")
-(                                       n     tp      fp     fn        pr        rc       cov         f  pr_micro  rc_micro   f_micro
-filename   ns                tau                                                                                                    
-pred_5.tsv disorder_function 0.01  168.0  492.0  1190.0   22.0  0.292532  0.959623  1.000000  0.448380  0.292509  0.957198  0.448087
-                             0.02  168.0  492.0  1190.0   22.0  0.292532  0.959623  1.000000  0.448380  0.292509  0.957198  0.448087
-                             0.03  168.0  492.0  1189.0   22.0  0.292695  0.959623  1.000000  0.448571  0.292683  0.957198  0.448292
-                             0.04  168.0  492.0  1189.0   22.0  0.292695  0.959623  1.000000  0.448571  0.292683  0.957198  0.448292
-                             0.05  168.0  492.0  1189.0   22.0  0.292695  0.959623  1.000000  0.448571  0.292683  0.957198  0.448292
-...                                  ...    ...     ...    ...       ...       ...       ...       ...       ...       ...       ...
-pred_1.tsv disorder_function 0.41    1.0    1.0     3.0  513.0  0.250000  0.001984  0.005952  0.003937  0.250000  0.001946  0.003861
-                             0.42    1.0    1.0     3.0  513.0  0.250000  0.001984  0.005952  0.003937  0.250000  0.001946  0.003861
-                             0.43    1.0    1.0     3.0  513.0  0.250000  0.001984  0.005952  0.003937  0.250000  0.001946  0.003861
-                             0.44    1.0    1.0     3.0  513.0  0.250000  0.001984  0.005952  0.003937  0.250000  0.001946  0.003861
-                             0.45    1.0    1.0     2.0  513.0  0.333333  0.001984  0.005952  0.003945  0.333333  0.001946  0.003868
+(                                       n        tp        fp        fn        pr  ...         f         s  pr_micro  rc_micro   f_micro
+filename   ns                tau                                                  ...                                                  
+pred_5.tsv disorder_function 0.01  168.0  2.928571  7.083333  0.130952  0.292532  ...  0.448380  7.084544  0.292509  0.957198  0.448087
+                             0.02  168.0  2.928571  7.083333  0.130952  0.292532  ...  0.448380  7.084544  0.292509  0.957198  0.448087
+                             0.03  168.0  2.928571  7.077381  0.130952  0.292695  ...  0.448571  7.078592  0.292683  0.957198  0.448292
+                             0.04  168.0  2.928571  7.077381  0.130952  0.292695  ...  0.448571  7.078592  0.292683  0.957198  0.448292
+                             0.05  168.0  2.928571  7.077381  0.130952  0.292695  ...  0.448571  7.078592  0.292683  0.957198  0.448292
+...                                  ...       ...       ...       ...       ...  ...       ...       ...       ...       ...       ...
+pred_1.tsv disorder_function 0.41    1.0  0.005952  0.017857  3.053571  0.250000  ...  0.003937  3.053624  0.250000  0.001946  0.003861
+                             0.42    1.0  0.005952  0.017857  3.053571  0.250000  ...  0.003937  3.053624  0.250000  0.001946  0.003861
+                             0.43    1.0  0.005952  0.017857  3.053571  0.250000  ...  0.003937  3.053624  0.250000  0.001946  0.003861
+                             0.44    1.0  0.005952  0.017857  3.053571  0.250000  ...  0.003937  3.053624  0.250000  0.001946  0.003861
+                             0.45    1.0  0.005952  0.011905  3.053571  0.333333  ...  0.003945  3.053595  0.333333  0.001946  0.003868
 
-[352 rows x 11 columns], {'f':                                        n     tp     fp     fn        pr        rc       cov         f  pr_micro  rc_micro   f_micro  cov_max
-filename   ns                tau                                                                                                            
-pred_1.tsv disorder_function 0.04  166.0  293.0  352.0  221.0  0.466566  0.579960  0.988095  0.517120  0.454264  0.570039  0.505608      1.0
-pred_2.tsv disorder_function 0.84  163.0  295.0  310.0  219.0  0.504499  0.579960  0.970238  0.539604  0.487603  0.573930  0.527256      1.0
-pred_3.tsv disorder_function 0.89  168.0  355.0  269.0  159.0  0.638889  0.701290  1.000000  0.668637  0.568910  0.690661  0.623902      1.0
-pred_4.tsv disorder_function 0.06  168.0  392.0  112.0  122.0  0.777778  0.774504  1.000000  0.776137  0.777778  0.762646  0.770138      1.0
-pred_5.tsv disorder_function 0.38  167.0  394.0  328.0  120.0  0.596671  0.776389  0.994048  0.674768  0.545706  0.766537  0.637540      1.0, 'f_micro':                                        n     tp     fp     fn        pr        rc       cov         f  pr_micro  rc_micro   f_micro  cov_max
-filename   ns                tau                                                                                                            
-pred_1.tsv disorder_function 0.04  166.0  293.0  352.0  221.0  0.466566  0.579960  0.988095  0.517120  0.454264  0.570039  0.505608      1.0
-pred_2.tsv disorder_function 0.84  163.0  295.0  310.0  219.0  0.504499  0.579960  0.970238  0.539604  0.487603  0.573930  0.527256      1.0
-pred_3.tsv disorder_function 0.89  168.0  355.0  269.0  159.0  0.638889  0.701290  1.000000  0.668637  0.568910  0.690661  0.623902      1.0
-pred_4.tsv disorder_function 0.06  168.0  392.0  112.0  122.0  0.777778  0.774504  1.000000  0.776137  0.777778  0.762646  0.770138      1.0
-pred_5.tsv disorder_function 0.38  167.0  394.0  328.0  120.0  0.596671  0.776389  0.994048  0.674768  0.545706  0.766537  0.637540      1.0})
+[352 rows x 14 columns], {'f':                                        n        tp        fp        fn        pr  ...         s  pr_micro  rc_micro   f_micro  cov_max
+filename   ns                tau                                                  ...                                                 
+pred_1.tsv disorder_function 0.04  166.0  1.744048  2.095238  1.315476  0.466566  ...  2.473964  0.454264  0.570039  0.505608      1.0
+pred_2.tsv disorder_function 0.84  163.0  1.755952  1.845238  1.303571  0.504499  ...  2.259248  0.487603  0.573930  0.527256      1.0
+pred_3.tsv disorder_function 0.89  168.0  2.113095  1.601190  0.946429  0.638889  ...  1.859983  0.568910  0.690661  0.623902      1.0
+pred_4.tsv disorder_function 0.06  168.0  2.333333  0.666667  0.726190  0.777778  ...  0.985798  0.777778  0.762646  0.770138      1.0
+pred_5.tsv disorder_function 0.38  167.0  2.345238  1.952381  0.714286  0.596671  ...  2.078941  0.545706  0.766537  0.637540      1.0
 
+[5 rows x 15 columns], 's':                                        n        tp        fp        fn        pr  ...         s  pr_micro  rc_micro   f_micro  cov_max
+filename   ns                tau                                                  ...                                                 
+pred_1.tsv disorder_function 0.06  102.0  1.047619  0.297619  2.011905  0.816667  ...  2.033799  0.778761  0.342412  0.475676      1.0
+pred_2.tsv disorder_function 0.91  124.0  1.196429  0.839286  1.863095  0.638978  ...  2.043410  0.587719  0.391051  0.469626      1.0
+pred_3.tsv disorder_function 0.89  168.0  2.113095  1.601190  0.946429  0.638889  ...  1.859983  0.568910  0.690661  0.623902      1.0
+pred_4.tsv disorder_function 0.06  168.0  2.333333  0.666667  0.726190  0.777778  ...  0.985798  0.777778  0.762646  0.770138      1.0
+pred_5.tsv disorder_function 0.42  156.0  1.642857  0.714286  1.416667  0.776221  ...  1.586552  0.696970  0.536965  0.606593      1.0
+
+[5 rows x 15 columns], 'f_micro':                                        n        tp        fp        fn        pr  ...         s  pr_micro  rc_micro   f_micro  cov_max
+filename   ns                tau                                                  ...                                                 
+pred_1.tsv disorder_function 0.04  166.0  1.744048  2.095238  1.315476  0.466566  ...  2.473964  0.454264  0.570039  0.505608      1.0
+pred_2.tsv disorder_function 0.84  163.0  1.755952  1.845238  1.303571  0.504499  ...  2.259248  0.487603  0.573930  0.527256      1.0
+pred_3.tsv disorder_function 0.89  168.0  2.113095  1.601190  0.946429  0.638889  ...  1.859983  0.568910  0.690661  0.623902      1.0
+pred_4.tsv disorder_function 0.06  168.0  2.333333  0.666667  0.726190  0.777778  ...  0.985798  0.777778  0.762646  0.770138      1.0
+pred_5.tsv disorder_function 0.38  167.0  2.345238  1.952381  0.714286  0.596671  ...  2.078941  0.545706  0.766537  0.637540      1.0
+
+[5 rows x 15 columns]})
 ```
 
 The output of `cafa_eval` is a tuple containing:
@@ -119,7 +130,6 @@ The `write_results` function generates the output files.
 >>> from cafaeval.evaluation import cafa_eval, write_results
 >>> res = cafa_eval("IDPO_disorder_function.obo", "predictions", "ground_truth.tsv")
 >>> write_results(*res)
-
 ```
 
 

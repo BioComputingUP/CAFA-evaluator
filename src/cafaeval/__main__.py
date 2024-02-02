@@ -15,20 +15,22 @@ def command_line():
 
     parser.add_argument('-out_dir', default='results',
                         help='Output directory. By default it creates \"results/\" in the current directory')
-    parser.add_argument('-ia', help='Information accretion file (columns: <term> <information_accretion>)')
+    parser.add_argument('-ia', help='Information Accretion file (columns: <term> <information_accretion>)')
     parser.add_argument('-no_orphans', action='store_true', default=False,
-                        help='Consider terms without parents, e.g. the root(s), in the evaluation')
+                        help='Exclude terms without parents, e.g. the root(s), in the evaluation')
     parser.add_argument('-norm', choices=['cafa', 'pred', 'gt'], default='cafa',
-                        help='Normalization strategy. i) CAFA strategy (cafa); '
-                             'ii) consider predicted targets (pred); '
-                             'iii) consider ground truth proteins (gt)')
+                        help='cafa - implements the CAFA normalization strategy. '
+                             'Precision is normalized by the number of predicted targets, '
+                             'all other metrics by the number of ground truth targets. '
+                             'pred - All metrics are normalized by the number of predicted targets. '
+                             'gt - All metrics are normalized by the number of ground truth targets')
     parser.add_argument('-prop', choices=['max', 'fill'], default='max',
-                        help='Ancestor propagation strategy. i) Propagate the max score of the traversed subgraph '
-                             'iteratively (max); ii) Propagate with max until a different score is found (fill)')
+                        help='Ancestor propagation strategy. max - Propagate the max score of the traversed subgraph '
+                             'iteratively. fill - Propagate with max until a different score is found')
     parser.add_argument('-th_step', type=float, default=0.01,
-                        help='Threshold step size in the range [0, 1). A smaller step, means more calculation.')
+                        help='Threshold step size in the range [0, 1). A smaller step, means more calculation')
     parser.add_argument('-max_terms', type=int, default=None,
-                        help='Number of terms for protein and namespace to consider in the evaluation.')
+                        help='Number of terms for protein and namespace to consider in the evaluation')
     parser.add_argument('-threads', type=int, default=4,
                         help='Parallel threads. 0 means use all available CPU threads. '
                              'Do not use multithread if you are short in memory')
