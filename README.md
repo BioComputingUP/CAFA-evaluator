@@ -14,6 +14,12 @@ CAFA-evaluator implementation was inspired by the original Matlab code used in C
 
 Visit our Wiki for more information about the [CAFA-evaluator algorithm](https://github.com/BioComputingUP/CAFA-evaluator/wiki).
 
+## Citation
+CAFA-evaluator: A Python Tool for Benchmarking Ontological Classification Methods  
+*D Piovesan, D Zago, P Joshi, MC De Paolis Kaluza, M Mehdiabadi, R Ramola, AM Monzon, W Reade, I Friedberg, P Radivojac, SCE Tosatto*  
+**Bioinformatics Advances** (2024)  
+DOI: [10.1093/bioadv/vbae043](https://doi.org/10.1093/bioadv/vbae043)
+
 ## Installation
 
 You can use the tool simply cloning this repo and running `__main__.py` Python script. 
