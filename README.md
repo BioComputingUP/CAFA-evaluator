@@ -12,7 +12,7 @@ The package also contains a **Jupyter Notebook** to generate precision-recall an
 CAFA-evaluator implementation was inspired by the original Matlab code used in CAFA2 assessment and available at 
 [https://github.com/yuxjiang/CAFA2](https://github.com/yuxjiang/CAFA2).
 
-Visit our Wiki for more information about the [CAFA-evaluator algorithm](https://github.com/BioComputingUP/CAFA-evaluator/wiki).
+Visit the [CAFA-evaluator Wiki](https://github.com/BioComputingUP/CAFA-evaluator/wiki) for more information about the algorithm.
 
 ## Citation
 CAFA-evaluator: A Python Tool for Benchmarking Ontological Classification Methods  
