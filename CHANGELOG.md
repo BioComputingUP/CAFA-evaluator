@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 ## [current] - 
 - We are working to include the calculation of bootstrap confidence intervals.
 
+## [1.2.1] - 
+- Minor bugfix affecting multi-thread calculation. 
+
 ## [1.2.0] - 2024-02-01 
 - We included micro-average metrics. Now precision, recall and F-score 
 in addition to previously reported metrics are calculated as micro-averages 
