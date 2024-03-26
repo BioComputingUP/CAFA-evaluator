@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 ## [current] - 
 - We are working to include the calculation of bootstrap confidence intervals.
 
-## [1.2.1] - 
+## [1.2.1] - 2024-03-26
 - Minor bugfix affecting multi-thread calculation. 
 
 ## [1.2.0] - 2024-02-01 
