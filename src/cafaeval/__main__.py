@@ -48,11 +48,12 @@ def command_line():
     root_handler.setFormatter(log_formatter)
 
     # Run the evaluation
-    df, dfs_best = cafa_eval(args.obo_file, args.pred_dir, args.gt_file, args.ia, args.no_orphans, args.norm, args.prop,
-                             args.max_terms, args.th_step, args.threads)
+    df, dfs_best = cafa_eval(args.obo_file, args.pred_dir, args.gt_file,
+                             ia=args.ia, no_orphans=args.no_orphans, norm=args.norm, prop=args.prop,
+                             max_terms=args.max_terms, th_step=args.th_step, n_cpu=args.threads)
 
     # Write the results
-    write_results(df, dfs_best, args.out_dir, args.th_step)
+    write_results(df, dfs_best, out_dir=args.out_dir, th_step=args.th_step)
 
 
 if __name__ == "__main__":
