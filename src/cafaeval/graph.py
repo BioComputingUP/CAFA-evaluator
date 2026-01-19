@@ -31,7 +31,7 @@ class Graph:
         for self.idxs, (term_id, term) in enumerate(terms_dict.items()):
             rel_list.extend([[term_id, rel, term['namespace']] for rel in term['rel']])
             self.terms_list.append({'id': term_id, 'name': term['name'], 'namespace': namespace, 'def': term['def'],
-                                 'adj': [], 'children': []})
+                                 'adj': set(), 'children': set()})
             self.terms_dict[term_id] = {'index': self.idxs, 'name': term['name'], 'namespace': namespace, 'def': term['def']}
             for a_id in term['alt_id']:
                 self.terms_dict_alt.setdefault(a_id, set()).add(term_id)
@@ -46,8 +46,8 @@ class Graph:
                 i = self.terms_dict[id1]['index']
                 j = self.terms_dict[id2]['index']
                 self.dag[i, j] = 1
-                self.terms_list[i]['adj'].append(j)
-                self.terms_list[j]['children'].append(i)
+                self.terms_list[i]['adj'].add(j)
+                self.terms_list[j]['children'].add(i)
                 logging.debug("i,j {},{} {},{}".format(i, j, id1, id2))
             else:
                 logging.debug('Skipping branch to external namespace: {}'.format(id2))
