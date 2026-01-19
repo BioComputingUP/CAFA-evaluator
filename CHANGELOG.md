@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 ## [current] - 
 - We are working to include the calculation of bootstrap confidence intervals.
 
+## [1.3.0] - 2025-12-06
+- Fix topological sorting when multiple edge types connect the same node. See this [Kaggle discussion](https://www.kaggle.com/competitions/cafa-6-protein-function-prediction/discussion/644800)
+
+## [1.2.2] - 2025-10-06
+- Replace multiprocessing with multithreading improving execution time and memory consumption.
+
 ## [1.2.1] - 2024-03-26
 - Minor bugfix affecting multi-thread calculation. 
 
